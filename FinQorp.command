@@ -26,7 +26,7 @@ echo ""
 
 # Start Backend (FastAPI)
 echo "🔧 Starting Backend (FastAPI)..."
-.venv/bin/python -m uvicorn api:app --reload --port 8000 > backend.log 2>&1 &
+.venv/bin/python -m uvicorn api:app --reload --port 6150 > backend.log 2>&1 &
 BACKEND_PID=$!
 echo "   ✓ Backend started (PID: $BACKEND_PID)"
 
@@ -47,15 +47,15 @@ sleep 5
 echo ""
 echo "✅ FinQorp is now running!"
 echo ""
-echo "📍 Backend API:  http://localhost:8000"
-echo "📍 Frontend App: http://localhost:5173"
-echo "📍 API Docs:     http://localhost:8000/docs"
+echo "📍 Backend API:  http://localhost:6150"
+echo "📍 Frontend App: http://localhost:6100"
+echo "📍 API Docs:     http://localhost:6150/docs"
 echo ""
 
 # Open the application in default browser
 echo "🌐 Opening FinQorp in your browser..."
 sleep 2
-open http://localhost:5173
+open http://localhost:6100
 
 echo ""
 echo "📝 Logs are being written to:"

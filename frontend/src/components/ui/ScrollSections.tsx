@@ -150,7 +150,7 @@ export function ScrollSections({ scrollProgress }: Props) {
             lineHeight: 1.7,
             marginTop: '1.8rem',
           }}>
-            Finqorp fuses real-time market intelligence with machine learning to give you an institutional edge — in your browser.
+            MoneyMood.ai fuses real-time market intelligence with machine learning to give you an institutional edge — in your browser.
           </motion.p>
 
           {/* CTA group */}
@@ -341,7 +341,7 @@ export function ScrollSections({ scrollProgress }: Props) {
             textTransform: 'uppercase',
             marginBottom: '1rem',
           }}>
-            Why Finqorp
+            Why MoneyMood.ai
           </motion.div>
           
           <motion.h2 variants={itemVariants} style={{
@@ -478,7 +478,7 @@ export function ScrollSections({ scrollProgress }: Props) {
             lineHeight: 1.7,
             marginBottom: '3rem',
           }}>
-            Finqorp brings hedge-fund-level analytics to your fingertips. No compromise.
+            MoneyMood.ai brings hedge-fund-level analytics to your fingertips. No compromise.
           </motion.p>
           
           <motion.div variants={itemVariants}>
@@ -505,7 +505,7 @@ export function ScrollSections({ scrollProgress }: Props) {
                   display: 'inline-block'
                 }}
               >
-                Enter Finqorp →
+                Enter MoneyMood.ai →
               </Link>
             </motion.div>
           </motion.div>

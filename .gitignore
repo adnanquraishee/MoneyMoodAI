@@ -1,55 +1,94 @@
-# Virtual environments
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
 venv/
 .venv/
-.env/
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
+env/
+ENV/
+env.bak/
+venv.bak/
 
-# OS-specific files
-.DS_Store
-Thumbs.db
+# Environment variables & secrets
+.env
+.env.local
+.env.*.local
+*.env
+!.env.example
+!frontend/.env.example
 
-# IDE / editor settings
-.vscode/
-.idea/
+# Node / Frontend
+node_modules/
+frontend/node_modules/
+frontend/dist/
+.npm/
+.eslintcache
 
-# Python package cache
-*.egg-info/
-.eggs/
-build/
-dist/
-
-# Logs and temp files
+# Logs & temporary files
 *.log
+app.log
+backend.log
+backend_test.log
+frontend.log
+logs/
 *.tmp
 *.swp
 *.swo
+*~
 
-# Jupyter / Streamlit / temp data
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE & Editor files
+.vscode/
+.idea/
+.claude/
+*.sublime-project
+*.sublime-workspace
+
+# Jupyter Notebooks & Streamlit
 .ipynb_checkpoints/
+.streamlit/
 
+# Local cache & data snapshots
+data/*.pkl
+data/*_snapshot.json
+data/*.csv
+!data/nse_equity_list.csv
 
-# Model and large data files
+# Reflex / subproject test dirs
+MoneyMoodAI/
+.web/
+.states/
+
+# Binary / ML models
 *.h5
-*.pkl
-*.csv
-*.xlsx
-*.db
-*.pdf
-*.jpg
-*.png
-
-# Ensure the app logo is not ignored
-!finqorp_logo.png
-
-# TensorFlow / Torch compiled files
-*.ckpt
 *.pb
 *.pt
 *.pth
-
-# Other auto-generated artifacts
-__pycache__/
-
+*.ckpt

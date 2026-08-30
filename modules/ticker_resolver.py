@@ -1,4 +1,5 @@
 # modules/ticker_resolver.py
+import html
 import requests
 import yfinance as yf
 
@@ -15,7 +16,7 @@ def find_ticker_options(company_name: str) -> list[dict]:
     try:
         user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/108.0.0.0 Safari/537.36'
         url = "https://query2.finance.yahoo.com/v1/finance/search"
-        params = {"q": company_name, "quotes_count": 10, "lang": "en-US"} 
+        params = {"q": company_name, "quotesCount": 20, "lang": "en-IN", "region": "IN"}
         
         response = requests.get(url, params=params, headers={'User-Agent': user_agent})
         
@@ -31,7 +32,7 @@ def find_ticker_options(company_name: str) -> list[dict]:
             if quote.get("quoteType") == "EQUITY":
                 options.append({
                     "ticker": quote.get("symbol"),
-                    "name": quote.get("longname", quote.get("shortname", "N/A")),
+                    "name": html.unescape(quote.get("longname", quote.get("shortname", "N/A")) or "N/A"),
                     "exchange": quote.get("exchDisp", "N/A") # Display exchange, e.g., "NYSE", "LSE"
                 })
         

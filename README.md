@@ -56,7 +56,7 @@ npm install
 
 Create a `.env` file in the `frontend` directory:
 ```env
-VITE_API_URL=http://localhost:8000
+VITE_API_URL=http://localhost:6150
 ```
 
 Set your Google Gemini API key (for AI insights):
@@ -69,12 +69,12 @@ export GOOGLE_API_KEY="your-gemini-api-key"
 ```bash
 # From project root
 source .venv/bin/activate
-uvicorn api:app --reload --port 8000
+uvicorn api:app --reload --port 6150
 ```
 
-The API will be available at **http://localhost:8000**
+The API will be available at **http://localhost:6150**
 
-API Docs: http://localhost:8000/docs
+API Docs: http://localhost:6150/docs
 
 ### 5. Start Frontend Dev Server
 
@@ -84,7 +84,7 @@ cd frontend
 npm run dev
 ```
 
-The app will be available at **http://localhost:5173**
+The app will be available at **http://localhost:6100**
 
 ---
 
@@ -185,7 +185,7 @@ finqorp/
 
 ---
 
-## 🛠️ API Endpoints
+## 🔌 API Endpoints
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
@@ -199,7 +199,7 @@ finqorp/
 | `/api/market/indices` | GET | Market overview |
 | `/api/compare` | POST | Compare stocks |
 
-Full API documentation available at: `http://localhost:8000/docs`
+Full API documentation available at: `http://localhost:6150/docs`
 
 ---
 
@@ -208,9 +208,9 @@ Full API documentation available at: `http://localhost:8000/docs`
 ### Backend
 ```bash
 # Test API endpoints
-curl http://localhost:8000/api/search?query=Apple
-curl http://localhost:8000/api/stock/AAPL
-curl http://localhost:8000/api/market/indices
+curl http://localhost:6150/api/search?query=Apple
+curl http://localhost:6150/api/stock/AAPL
+curl http://localhost:6150/api/market/indices
 ```
 
 ### Frontend

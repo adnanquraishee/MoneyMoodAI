@@ -14,3 +14,8 @@ transformers==4.57.1
 torch==2.9.1
 nltk==3.9.1
 prophet==1.2.1
+fastapi>=0.128.0
+uvicorn>=0.40.0
+arch>=8.0.0
+apscheduler>=3.11.0
+cachetools>=6.0.0

@@ -1,9 +1,10 @@
 import { NavLink, Link } from 'react-router-dom';
-import { 
-    LayoutDashboard, 
-    Activity, 
-    BarChart3, 
+import {
+    LayoutDashboard,
     GitCompare,
+    ScanSearch,
+    Star,
+    LineChart,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { motion } from 'framer-motion';
@@ -21,13 +22,14 @@ export function Sidebar({ currentStock, stockMetrics }: SidebarProps) {
 
     const NAV_ITEMS = [
         { label: 'Market Overview', icon: LayoutDashboard, path: '/app/' },
-        { label: 'Technical Analysis', icon: Activity, path: getStockUrl('/app/technical') },
-        { label: 'Forecast & Ratings', icon: BarChart3, path: getStockUrl('/app/forecast') },
+        { label: 'Screener', icon: ScanSearch, path: '/app/screener' },
+        { label: 'Watchlist', icon: Star, path: '/app/watchlist' },
+        { label: 'Stock Desk', icon: LineChart, path: getStockUrl('/app/stock') },
         { label: 'Peer Comparison', icon: GitCompare, path: '/app/compare' },
     ];
 
     return (
-        <aside className="w-64 h-screen bg-[var(--obsidian)] border-r border-white/10 flex flex-col sticky top-0 shadow-2xl">
+        <aside className="w-64 h-screen bg-[var(--obsidian)]/60 backdrop-blur-2xl border-r border-white/10 flex flex-col sticky top-0 shadow-2xl relative z-20">
             {/* Logo */}
             <Link to="/" className="block">
                 <motion.div 
@@ -37,7 +39,7 @@ export function Sidebar({ currentStock, stockMetrics }: SidebarProps) {
                 >
                     <div className="w-full h-20 flex items-center justify-center mb-3">
                         <h1 className="text-3xl font-bold bg-gradient-to-r from-[var(--teal)] to-[var(--silver)] bg-clip-text text-transparent italic tracking-tight drop-shadow-[0_0_15px_rgba(0,245,212,0.3)]">
-                            Finqorp
+                            MoneyMood.ai
                         </h1>
                     </div>
                     <p className="text-[10px] tracking-[0.4em] text-[var(--teal)] font-bold uppercase opacity-80">
@@ -53,6 +55,7 @@ export function Sidebar({ currentStock, stockMetrics }: SidebarProps) {
                     <NavLink
                         key={item.path}
                         to={item.path}
+                        end={item.path === '/app/'}
                         className={({ isActive }) =>
                             cn(
                                 'flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group',

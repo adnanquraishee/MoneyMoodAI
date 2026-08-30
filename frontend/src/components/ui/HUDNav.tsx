@@ -1,13 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
-const NAV_LINKS = [
-  { label: 'Markets',  to: '/app' },
-  { label: 'Analysis', to: '/app/analysis' },
-  { label: 'Forecast', to: '/app/forecast' },
-  { label: 'Compare',  to: '/app/compare' },
-];
-
 export function HUDNav() {
   const [scrolled, setScrolled] = useState(false);
 
@@ -50,7 +43,7 @@ export function HUDNav() {
           textTransform: 'uppercase',
         }}
       >
-        Finqorp
+        MoneyMood.ai
       </span>
 
       {/* Links removed from home screen for immersion */}

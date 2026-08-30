@@ -1,0 +1,5 @@
+#!/bin/bash
+# Thin wrapper so MoneyMood.app can be double-clicked from Finder or the Dock.
+# All the real work lives in start.command at the project root.
+PROJECT_DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
+open -a Terminal "$PROJECT_DIR/start.command"

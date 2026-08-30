@@ -4,7 +4,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ===== Finqorp Design Tokens ===== */
+/* ===== MoneyMood.ai Design Tokens ===== */
 :root {
   --obsidian:  hsl(230, 20%, 6%);
   --obsidian2: hsl(230, 18%, 9%);

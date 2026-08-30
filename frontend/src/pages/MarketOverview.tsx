@@ -158,7 +158,7 @@ export function MarketOverview() {
 
                 {/* Footer */}
                 <div className="text-center text-sm text-gray-600 pt-8 border-t border-white/5 font-medium">
-                    © 2025 Finqorp Analytics | Real-time Market Intelligence Engine
+                    © 2025 MoneyMood.ai Analytics | Real-time Market Intelligence Engine
                 </div>
             </div>
         </motion.div>
