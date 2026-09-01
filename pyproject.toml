@@ -1,3 +1,9 @@
+[project]
+name = "moneymoodai"
+version = "0.1.0"
+description = "MoneyMood AI backend"
+requires-python = ">=3.9"
+
 # Vercel autodetects app.py (the legacy Streamlit dashboard) and finds no
 # FastAPI instance there. Point it at the real API instead.
 [tool.vercel]
