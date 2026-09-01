@@ -1,0 +1,13 @@
+# Local extras: the on-device sentiment model and the legacy Streamlit app.
+# None of these are needed to run api:app, and none are deployed.
+-r requirements.txt
+
+torch==2.9.1
+transformers==4.57.1
+nltk==3.9.1
+arch>=8.0.0
+scikit-learn==1.5.2
+matplotlib==3.9.2
+plotly==5.24.1
+streamlit==1.39.0
+textblob==0.18.0

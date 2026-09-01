@@ -1,0 +1,4 @@
+# Vercel autodetects app.py (the legacy Streamlit dashboard) and finds no
+# FastAPI instance there. Point it at the real API instead.
+[tool.vercel]
+entrypoint = "api:app"

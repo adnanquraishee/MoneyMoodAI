@@ -46,17 +46,21 @@ SENTIMENT_WEIGHTS = {"company": 0.55, "sector": 0.25, "peers": 0.20}
 
 
 def _sector_sentiment(sector: str | None) -> float | None:
-    """News sentiment for the whole sector (VADER over sector headlines)."""
+    """News sentiment for the whole sector, over sector headlines.
+
+    Uses the finance-aware scorer rather than VADER: a general-purpose lexicon
+    reads "shares plunge on strong profit-taking" as positive because of the
+    word "strong", which is the opposite of what it means to a holder."""
     if not sector:
         return None
     if sector in _sector_sent_cache:
         return _sector_sent_cache[sector]
     try:
-        from modules import data_fetch, sentiment as sentiment_mod
+        from modules import data_fetch, news_sentiment as ns
         headlines = data_fetch.get_headlines(f"Indian {sector} sector stocks") or []
         if not headlines:
             return None
-        scores = [sentiment_mod._sia.polarity_scores(h["title"])["compound"]
+        scores = [ns._blend(ns._sent.score(h["title"]), ns._lexicon(h["title"]))
                   for h in headlines[:12]]
         val = float(np.mean(scores)) if scores else None
         if val is not None:
@@ -238,8 +242,7 @@ def compute_forecast(symbol: str, horizon: int = HORIZON_DEFAULT) -> dict:
     # --- Layered sentiment: company news + sector news + peer momentum ---
     company_sent = None
     try:
-        from modules import sentiment as sentiment_mod
-        _, _, s = sentiment_mod.analyze_sentiment(symbol.replace(".NS", ""))
+        s = _news_avg_sentiment(symbol)
         company_sent = float(s)
     except Exception:
         logger.warning("Company sentiment unavailable for %s", symbol)
@@ -435,3 +438,19 @@ def precompute_watchlist() -> None:
     from modules import watchlist_store
     for sym in watchlist_store.get_symbols():
         get_or_start(sym)
+
+
+def _news_avg_sentiment(symbol: str) -> float:
+    """Average news sentiment for the forecast's sentiment layer, via the
+    swappable backend so this does not drag torch into the bundle."""
+    try:
+        from modules import data_fetch, market_cache, news_sentiment
+        fund = market_cache.get_fundamental(symbol) or {}
+        company = fund.get("name") or symbol.replace(".NS", "")
+        items = news_sentiment.yahoo_news(symbol)
+        if not items:
+            items = data_fetch.get_headlines(f"{company} stock") or []
+        res = news_sentiment.analyse(items, company, symbol, limit=10)
+        return float(res.get("avg_sentiment") or 0.0)
+    except Exception:
+        return 0.0

@@ -23,7 +23,9 @@ import requests
 logger = logging.getLogger(__name__)
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-MODEL = "llama-3.3-70b-versatile"
+# The llama-3.x models were retired from Groq's catalogue; this key no
+# longer lists any of them, which silently broke every chat call.
+MODEL = "groq/compound"
 MAX_TURNS = 12          # last N messages sent to the model
 MAX_TOKENS = 700
 

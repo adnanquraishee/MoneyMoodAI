@@ -31,7 +31,7 @@ from urllib.parse import urlparse, parse_qs, unquote
 import requests
 from bs4 import BeautifulSoup
 
-from modules import sentiment as _sent
+from modules import finbert_backend as _sent  # .score(); FinBERT locally, hosted API on serverless
 
 logger = logging.getLogger(__name__)
 
@@ -232,7 +232,7 @@ def _blend(model: float, lex: float) -> float:
 def score_article(title: str, body: str, tokens: list[str]) -> dict:
     """Score one article. Returns the blended score and its components."""
     title = (title or "").strip()
-    head_model = _sent.finbert_score(title) if title else 0.0
+    head_model = _sent.score(title) if title else 0.0
     head_lex = _lexicon(title)
     head = _blend(head_model, head_lex)
 
@@ -258,7 +258,7 @@ def score_article(title: str, body: str, tokens: list[str]) -> dict:
         chunk.append(s)
         if sum(len(c) for c in chunk) > 900 or i == len(relevant[:25]) - 1:
             joined = " ".join(chunk)
-            m = _sent.finbert_score(joined)
+            m = _sent.score(joined)
             scores.append(_blend(m, _lexicon(joined)))
             weights.append(1.0 / (1 + 0.6 * len(scores)))
             chunk = []

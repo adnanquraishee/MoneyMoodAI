@@ -1,4 +1,3 @@
-import streamlit as st # Import Streamlit for caching
 import yfinance as yf
 import pandas as pd
 from GoogleNews import GoogleNews
@@ -72,8 +71,6 @@ def get_financials(ticker: str):
 # ------------------------------------------------------------
 # ✅ NEWS HEADLINES FETCH (MODIFIED)
 # ------------------------------------------------------------
-
-@st.cache_data(ttl=900) # --- MODIFICATION: Cache news for 15 minutes ---
 def get_headlines(topic: str = None, limit: int = 20):
     """
     Fetch latest Google News headlines.
@@ -173,8 +170,6 @@ def get_stock_data(symbol: str, period: str = "2y", interval: str = "1d"):
 # ------------------------------------------------------------
 # ✅ MARKET DATA FUNCTION
 # ------------------------------------------------------------
-
-@st.cache_data(ttl=900) # Cache for 15 minutes
 def get_market_data(tickers: list):
     """
     Fetches recent data for a list of tickers to get current price and % change.

@@ -7,18 +7,16 @@ from typing import List, Optional, Dict, Any
 import traceback
 import logging
 
-# Import existing modules
+# Import existing modules.
+# The legacy Streamlit-era modules (forecast, fundamentals, insights, compare,
+# recommendation, accuracy, sentiment) pulled in matplotlib, plotly, streamlit,
+# torch and transformers — together far over a serverless bundle limit — and
+# their endpoints were already unreachable from the UI. They stay in the repo
+# but are no longer imported by the API.
 from modules import (
     data_fetch,
-    sentiment,
-    forecast,
-    fundamentals,
-    insights,
-    compare,
-    recommendation,
     ticker_resolver,
     technicals,
-    accuracy
 )
 from modules import market_cache, forecast_engine, watchlist_store, paper_trading, time_trade, time_trade_random, news_sentiment, factors as factors_mod
 from modules import salahkaar
@@ -141,41 +139,6 @@ async def search_stocks(query: str = Query(..., min_length=1)):
         logger.error(f"Search error for '{query}': {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/stock/{symbol}")
-async def get_stock_data(symbol: str):
-    """
-    Get comprehensive stock data including fundamentals, metrics, and profile
-    """
-    try:
-        metrics, figs, profile_info = fundamentals.get_fundamentals(symbol)
-        
-        if "Error" in metrics:
-            raise HTTPException(status_code=404, detail=f"No data found for symbol: {symbol}")
-        
-        # Convert matplotlib figures to base64 (for charts)
-        import io
-        import base64
-        
-        chart_data = {}
-        for key, fig in figs.items():
-            buf = io.BytesIO()
-            fig.savefig(buf, format='png', dpi=100, bbox_inches='tight')
-            buf.seek(0)
-            chart_data[key] = base64.b64encode(buf.read()).decode('utf-8')
-            buf.close()
-        
-        return {
-            "symbol": symbol,
-            "metrics": metrics,
-            "profile": profile_info,
-            "charts": chart_data
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Stock data error for '{symbol}': {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 @app.get("/api/stock/{symbol}/chart")
 async def get_stock_chart(
     symbol: str, 
@@ -270,104 +233,73 @@ async def get_technicals(symbol: str):
         logger.error(f"Technical analysis error for '{symbol}': {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/stock/{symbol}/forecast")
-async def get_forecast(symbol: str):
-    """
-    Get price forecast, recommendation, sentiment, and accuracy metrics
-    """
-    try:
-        # 1. Sentiment analysis
-        _, sentiment_fig, sentiment_score = sentiment.analyze_sentiment(symbol)
-        
-        # 2. Generate 30-day forecast for recommendation
-        hist_df_30d, simulations_30d, _ = forecast.generate_forecast(symbol, period=30, num_simulations=100)
-        
-        # 3. Generate recommendation
-        rec_text, rec_fig = recommendation.get_recommendation(symbol, hist_df_30d, simulations_30d, sentiment_score)
-        
-        # 4. Generate 90-day forecast for visualization
-        hist_df_90d, simulations_90d, future_dates_90d = forecast.generate_forecast(symbol, period=90, num_simulations=100)
-        forecast_fig = forecast.plot_forecast(hist_df_90d, simulations_90d, future_dates_90d, sentiment_score)
-        
-        # 5. Run accuracy backtest
-        accuracy_results = accuracy.run_backtest(symbol, forecast_days=30, num_simulations=100)
-        
-        # Convert figures to base64
-        import io
-        import base64
-        
-        def fig_to_base64(fig):
-            buf = io.BytesIO()
-            fig.savefig(buf, format='png', dpi=120, bbox_inches='tight', facecolor='#0a0e17')
-            buf.seek(0)
-            img_base64 = base64.b64encode(buf.read()).decode('utf-8')
-            buf.close()
-            return img_base64
-        
-        sentiment_chart = fig_to_base64(sentiment_fig) if sentiment_fig else None
-        forecast_chart = fig_to_base64(forecast_fig) if forecast_fig else None
-        
-        # Handle recommendation figure (Plotly)
-        rec_chart = None
-        if rec_fig:
-            rec_chart = rec_fig.to_json()
-        
-        return {
-            "symbol": symbol,
-            "recommendation": rec_text,
-            "sentiment_score": sentiment_score,
-            "charts": {
-                "sentiment": sentiment_chart,
-                "forecast": forecast_chart,
-                "recommendation": rec_chart
-            },
-            "accuracy": accuracy_results
-        }
-    except Exception as e:
-        logger.error(f"Forecast error for '{symbol}': {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
+@app.post("/api/compare")
+async def compare_stocks(request: CompareRequest):
+    """Side-by-side comparison, rebuilt as a pure memory read.
 
-@app.get("/api/stock/{symbol}/sentiment")
-async def get_sentiment(symbol: str):
-    """
-    Get sentiment analysis for a stock
-    """
-    try:
-        _, sentiment_fig, sentiment_score = sentiment.analyze_sentiment(symbol)
-        
-        # Convert figure to base64
-        import io
-        import base64
-        
-        buf = io.BytesIO()
-        sentiment_fig.savefig(buf, format='png', dpi=120, bbox_inches='tight', facecolor='#0a0e17')
-        buf.seek(0)
-        chart = base64.b64encode(buf.read()).decode('utf-8')
-        buf.close()
-        
-        return {
-            "symbol": symbol,
-            "score": sentiment_score,
-            "chart": chart
-        }
-    except Exception as e:
-        logger.error(f"Sentiment error for '{symbol}': {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
+    The previous version rendered a matplotlib PNG server-side; the table and
+    the written summary were always the substance, and dropping the image
+    removes a 29 MB dependency. `chart` stays in the response as an empty
+    string so the existing client keeps working."""
+    if len(request.symbols) < 2:
+        raise HTTPException(status_code=400, detail="At least 2 symbols required for comparison")
+    if len(request.symbols) > 5:
+        raise HTTPException(status_code=400, detail="Maximum 5 symbols allowed")
 
-@app.get("/api/stock/{symbol}/insights")
-async def get_insights(symbol: str):
-    """
-    Get AI-generated insights for a stock
-    """
-    try:
-        summary = insights.generate_ai_summary(symbol)
-        return {
-            "symbol": symbol,
-            "summary": summary
-        }
-    except Exception as e:
-        logger.error(f"Insights error for '{symbol}': {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
+    def pct(v):
+        return round(v * 100, 2) if isinstance(v, (int, float)) else None
+
+    rows, notes = [], []
+    for raw in request.symbols:
+        sym = raw.strip().upper()
+        f = market_cache.get_fundamental(sym) or {}
+        r = market_cache.get_screener_row(sym) or {}
+        q = market_cache.get_quote(sym) or {}
+        if not f and not r:
+            continue
+        rows.append({
+            "Symbol": sym.replace(".NS", ""),
+            "Company": f.get("name") or r.get("name") or sym,
+            "Price": round(q["price"], 2) if q.get("price") else None,
+            "P/E": round(f["pe"], 1) if isinstance(f.get("pe"), (int, float)) else None,
+            "P/B": round(f["pb"], 1) if isinstance(f.get("pb"), (int, float)) else None,
+            "ROE %": pct(f.get("roe")),
+            "Net Margin %": pct(f.get("profit_margin")),
+            "Rev Growth %": pct(f.get("revenue_growth")),
+            "D/E": round(f["debt_to_equity"], 2) if isinstance(f.get("debt_to_equity"), (int, float)) else None,
+            "Div Yield %": pct(f.get("dividend_yield")),
+            "1Y Return %": pct(r.get("return_1y")),
+            "Beta": round(r["beta"], 2) if isinstance(r.get("beta"), (int, float)) else None,
+            "Conviction": round(r["score"]) if isinstance(r.get("score"), (int, float)) else None,
+        })
+    if len(rows) < 2:
+        raise HTTPException(status_code=404, detail="Not enough data to compare these symbols")
+
+    def best(field, biggest=True):
+        vals = [(r["Symbol"], r[field]) for r in rows if r.get(field) is not None]
+        if not vals:
+            return None
+        return (max if biggest else min)(vals, key=lambda x: x[1])
+
+    for field, biggest, phrase in [
+        ("ROE %", True, "earns the most on shareholder capital"),
+        ("Net Margin %", True, "keeps the most of each rupee of sales"),
+        ("Rev Growth %", True, "is growing sales fastest"),
+        ("P/E", False, "is the cheapest on trailing earnings"),
+        ("D/E", False, "carries the least debt"),
+        ("Div Yield %", True, "pays the most income"),
+    ]:
+        b = best(field, biggest)
+        if b:
+            notes.append(f"- **{b[0]}** {phrase} ({field.replace(' %','')}: {b[1]}).")
+
+    summary = ("### Comparison\n\n" + "\n".join(notes) +
+               "\n\nThese are descriptive facts about the numbers, not a recommendation. "
+               "A company leading on one measure can lag badly on another — read the columns "
+               "together, and tap any metric in the Stock Desk to learn what it does and does "
+               "not tell you.")
+    return {"symbols": request.symbols, "summary": summary, "data": rows, "chart": ""}
+
 
 @app.get("/api/market/indices")
 async def get_market_indices():
@@ -410,45 +342,6 @@ async def get_market_indices():
         return {"indices": result}
     except Exception as e:
         logger.error(f"Market indices error: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/compare")
-async def compare_stocks(request: CompareRequest):
-    """
-    Compare multiple stocks
-    """
-    try:
-        if len(request.symbols) < 2:
-            raise HTTPException(status_code=400, detail="At least 2 symbols required for comparison")
-        
-        if len(request.symbols) > 5:
-            raise HTTPException(status_code=400, detail="Maximum 5 symbols allowed")
-        
-        summary, df, fig = compare.compare_companies(request.symbols)
-        
-        # Convert dataframe to dict
-        comparison_data = df.to_dict('records')
-        
-        # Convert figure to base64
-        import io
-        import base64
-        
-        buf = io.BytesIO()
-        fig.savefig(buf, format='png', dpi=120, bbox_inches='tight', facecolor='#0a0e17')
-        buf.seek(0)
-        chart = base64.b64encode(buf.read()).decode('utf-8')
-        buf.close()
-        
-        return {
-            "symbols": request.symbols,
-            "summary": summary,
-            "data": comparison_data,
-            "chart": chart
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Comparison error: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 # ==================== v2: Screener / Watchlist / Forecast ====================
@@ -701,6 +594,39 @@ async def add_to_watchlist(request: WatchlistAddRequest):
 @app.delete("/api/watchlist/{symbol}")
 async def remove_from_watchlist(symbol: str):
     return {"items": watchlist_store.remove(symbol)}
+
+
+class WatchlistEnrichRequest(BaseModel):
+    symbols: List[str] = []
+
+
+@app.post("/api/watchlist/enrich")
+async def enrich_watchlist(req: WatchlistEnrichRequest):
+    """Quotes and scores for a caller-supplied list of symbols.
+
+    Stateless by design: the watchlist itself lives in the browser, so there
+    is nothing to persist server-side and nothing to share between visitors.
+    Pure memory reads."""
+    out = []
+    for sym in req.symbols[:100]:
+        sym = sym.strip().upper()
+        if not sym:
+            continue
+        quote = market_cache.get_quote(sym) or {}
+        row = market_cache.get_screener_row(sym) or {}
+        fund = market_cache.get_fundamental(sym) or {}
+        out.append({
+            "symbol": sym,
+            "added_at": None,
+            "note": "",
+            "price": quote.get("price"),
+            "change_pct": quote.get("change_pct"),
+            "score": row.get("score"),
+            "rsi": row.get("rsi"),
+            "name": row.get("name") or fund.get("name") or sym.replace(".NS", ""),
+            "sparkline": market_cache.get_sparkline(sym),
+        })
+    return {"items": out}
 
 
 @app.get("/api/stock/{symbol}/factors")

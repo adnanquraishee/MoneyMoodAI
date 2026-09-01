@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-    BookOpen, Wallet, ArrowRight, TrendingUp, TrendingDown, RotateCcw, History, Clock,
+    BookOpen, Wallet, ArrowRight, TrendingUp, TrendingDown, RotateCcw, History, Clock, Lock,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { cn } from '../lib/utils';
@@ -347,6 +347,38 @@ function PaperTab() {
     );
 }
 
+/* ------------------------------------------- Paper trading: locked for now */
+
+/** Flip to true once there are user accounts. PaperTab, /api/paper and
+ *  modules/paper_trading.py are all intact and working behind this. */
+const PAPER_TRADING_ENABLED: boolean = false;
+
+/**
+ * Paper trading needs a portfolio per person. The current store is a single
+ * shared file, so every visitor would trade the same money — it needs user
+ * accounts before it can be public. Locked rather than removed; the tab, the
+ * API and modules/paper_trading.py are all intact behind this flag.
+ */
+function PaperComingSoon() {
+    return (
+        <div className="glass-card !transform-none p-10 md:p-16 text-center">
+            <div className="mx-auto w-14 h-14 rounded-2xl bg-[var(--teal)]/10 border border-[var(--teal)]/25 flex items-center justify-center">
+                <Lock size={22} className="text-[var(--teal)]" />
+            </div>
+            <h3 className="text-2xl font-bold text-white mt-5">Coming soon</h3>
+            <p className="text-sm text-gray-400 mt-3 max-w-md mx-auto leading-relaxed">
+                Paper trading is waiting on accounts, so that your portfolio and your written
+                reasons stay yours rather than being shared with everyone else on the site.
+            </p>
+            <p className="text-xs text-gray-600 mt-6 max-w-md mx-auto leading-relaxed">
+                Until then, <span className="text-[var(--teal)]">Try Trade in Time</span> gives you the
+                same exercise — a real decision on a real company, with the outcome replayed from
+                actual prices.
+            </p>
+        </div>
+    );
+}
+
 /* =================================================================== Page */
 
 export function Learn() {
@@ -360,17 +392,17 @@ export function Learn() {
             <header className="mb-8">
                 <h1 className="text-3xl md:text-4xl font-bold text-white">Learn</h1>
                 <p className="text-gray-400 mt-2 max-w-2xl">
-                    Understand what the numbers mean, see what they did to real companies, test your
-                    judgment with real prices and imaginary money — or go back in time and decide blind.
+                    Understand what the numbers mean, see what they did to real companies, then go back
+                    in time and make a real decision blind — with the outcome replayed from actual prices.
                 </p>
             </header>
 
             <div className="flex gap-1 border-b border-white/10 mb-8">
                 {([
-                    ['lessons', 'Lessons', BookOpen],
-                    ['paper', 'Paper Trading', Wallet],
-                    ['time', 'Try Trade in Time', Clock],
-                ] as const).map(([id, label, Icon]) => (
+                    ['lessons', 'Lessons', BookOpen, false],
+                    ['paper', 'Paper Trading', Wallet, true],
+                    ['time', 'Try Trade in Time', Clock, false],
+                ] as const).map(([id, label, Icon, locked]) => (
                     <button
                         key={id}
                         onClick={() => setTab(id)}
@@ -378,11 +410,12 @@ export function Learn() {
                             tab === id ? 'border-[var(--teal)] text-[var(--teal)]' : 'border-transparent text-gray-500 hover:text-gray-300')}
                     >
                         <Icon size={15} /> {label}
+                        {locked && <Lock size={11} className="text-gray-600" />}
                     </button>
                 ))}
             </div>
 
-            {tab === 'lessons' ? <LessonsTab /> : tab === 'paper' ? <PaperTab /> : <TryTradeInTime />}
+            {tab === 'lessons' ? <LessonsTab /> : tab === 'paper' ? (PAPER_TRADING_ENABLED ? <PaperTab /> : <PaperComingSoon />) : <TryTradeInTime />}
         </div>
     );
 }

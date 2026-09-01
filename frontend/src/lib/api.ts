@@ -63,6 +63,31 @@ apiClient.interceptors.response.use(
     }
 );
 
+// ---------------------------------------------------------------------------
+// Watchlist storage. Kept in localStorage so each visitor has their own list
+// and the API stays stateless.
+// ---------------------------------------------------------------------------
+const LS_WATCHLIST = 'moneymood.watchlist.v1';
+const DEFAULT_WATCHLIST = ['RELIANCE.NS', 'TCS.NS', 'HDFCBANK.NS', 'INFY.NS'];
+
+function loadWatchSymbols(): string[] {
+    try {
+        const raw = localStorage.getItem(LS_WATCHLIST);
+        if (raw === null) return [...DEFAULT_WATCHLIST];
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed.filter(s => typeof s === 'string') : [];
+    } catch {
+        // Private browsing or blocked storage: fall back to a working default.
+        return [...DEFAULT_WATCHLIST];
+    }
+}
+
+function saveWatchSymbols(symbols: string[]): void {
+    try {
+        localStorage.setItem(LS_WATCHLIST, JSON.stringify(symbols));
+    } catch { /* nothing we can do; the session still works in memory */ }
+}
+
 export const api = {
     // Search for stocks
     searchStocks: async (query: string): Promise<SearchResponse> => {
@@ -187,19 +212,34 @@ export const api = {
         return response.data;
     },
 
+    // ---- watchlist ----
+    // The list of symbols lives in this browser; the server only enriches it
+    // with quotes. That keeps it personal to each visitor (a server-side file
+    // would be shared by everyone) and needs no writable disk, so it works on
+    // serverless hosting.
+
     getWatchlist: async (): Promise<WatchlistResponse> => {
-        const response = await apiClient.get<WatchlistResponse>('/api/watchlist');
-        return response.data;
+        const symbols = loadWatchSymbols();
+        if (symbols.length === 0) return { items: [] };
+        const response = await apiClient.post<WatchlistResponse>('/api/watchlist/enrich', { symbols });
+        // Preserve the order the user added them in.
+        const order = new Map(symbols.map((s, i) => [s, i]));
+        const items = [...response.data.items].sort(
+            (a, b) => (order.get(a.symbol) ?? 0) - (order.get(b.symbol) ?? 0));
+        return { items };
     },
 
     addToWatchlist: async (symbol: string): Promise<WatchlistResponse> => {
-        const response = await apiClient.post<WatchlistResponse>('/api/watchlist', { symbol });
-        return response.data;
+        const sym = symbol.trim().toUpperCase();
+        const symbols = loadWatchSymbols();
+        if (sym && !symbols.includes(sym)) saveWatchSymbols([...symbols, sym]);
+        return api.getWatchlist();
     },
 
     removeFromWatchlist: async (symbol: string): Promise<WatchlistResponse> => {
-        const response = await apiClient.delete<WatchlistResponse>(`/api/watchlist/${encodeURIComponent(symbol)}`);
-        return response.data;
+        const sym = symbol.trim().toUpperCase();
+        saveWatchSymbols(loadWatchSymbols().filter(s => s !== sym));
+        return api.getWatchlist();
     },
 
     getForecastV2: async (symbol: string, horizon = 90): Promise<ForecastV2Status> => {
