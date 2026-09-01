@@ -122,7 +122,7 @@ def _resolve(url: str) -> str:
 
 
 def _extract(html: str) -> str:
-    soup = BeautifulSoup(html, "lxml")
+    soup = BeautifulSoup(html, "html.parser")
     for bad in soup(["script", "style", "nav", "header", "footer", "aside", "form", "noscript"]):
         bad.decompose()
     node = soup.find("article") or soup.find(attrs={"itemprop": "articleBody"})

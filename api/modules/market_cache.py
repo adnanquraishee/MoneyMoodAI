@@ -15,7 +15,10 @@ from datetime import datetime, timezone
 import numpy as np
 import pandas as pd
 import yfinance as yf
-from apscheduler.schedulers.background import BackgroundScheduler
+try:
+    from apscheduler.schedulers.background import BackgroundScheduler
+except ImportError:
+    BackgroundScheduler = None
 from cachetools import TTLCache
 
 from modules import factors as factors_mod
@@ -861,17 +864,18 @@ def start() -> None:
         return
 
     threading.Thread(target=_warmup, name="market-warmup", daemon=True).start()
-    _scheduler = BackgroundScheduler(daemon=True)
-    _scheduler.add_job(refresh_universe, "interval", minutes=UNIVERSE_REFRESH_MIN,
-                       id="universe", max_instances=1, coalesce=True)
-    _scheduler.add_job(refresh_fundamentals, "interval", hours=FUNDAMENTALS_REFRESH_HRS,
-                       id="fundamentals", max_instances=1, coalesce=True)
-    _scheduler.add_job(refresh_fast_lane, "interval", seconds=FAST_LANE_REFRESH_SEC,
-                       id="fastlane", max_instances=1, coalesce=True)
-    _scheduler.add_job(refresh_indices, "interval", minutes=5,
-                       id="indices", max_instances=1, coalesce=True)
-    _scheduler.start()
-    logger.info("Market scheduler started")
+    if BackgroundScheduler is not None:
+        _scheduler = BackgroundScheduler(daemon=True)
+        _scheduler.add_job(refresh_universe, "interval", minutes=UNIVERSE_REFRESH_MIN,
+                           id="universe", max_instances=1, coalesce=True)
+        _scheduler.add_job(refresh_fundamentals, "interval", hours=FUNDAMENTALS_REFRESH_HRS,
+                           id="fundamentals", max_instances=1, coalesce=True)
+        _scheduler.add_job(refresh_fast_lane, "interval", seconds=FAST_LANE_REFRESH_SEC,
+                           id="fastlane", max_instances=1, coalesce=True)
+        _scheduler.add_job(refresh_indices, "interval", minutes=5,
+                           id="indices", max_instances=1, coalesce=True)
+        _scheduler.start()
+        logger.info("Market scheduler started")
 
 
 def stop() -> None:
