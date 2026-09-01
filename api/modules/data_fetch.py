@@ -1,6 +1,5 @@
 import yfinance as yf
 import pandas as pd
-from GoogleNews import GoogleNews
 import requests
 from bs4 import BeautifulSoup
 # NOTE: The get_ticker_from_name function has been moved to ticker_resolver.py
@@ -73,49 +72,11 @@ def get_financials(ticker: str):
 # ------------------------------------------------------------
 def get_headlines(topic: str = None, limit: int = 20):
     """
-    Fetch latest Google News headlines.
+    Fetch latest Google News headlines via RSS.
     Cleans up empty, duplicate, or invalid results.
-    Tries GoogleNews → falls back to Google RSS feed.
     """
     headlines = []
-
-    # --- Primary: GoogleNews package ---
-    try:
-        gn = GoogleNews(lang='en', region='IN')
-        search_query = topic if topic else "Business"
-        gn.search(search_query)
-        results = gn.result()[:limit]
-
-        if results:
-            for item in results:
-                title = item.get("title", "").strip()
-                link = item.get("link", "#").strip()
-
-                if (
-                    not title
-                    or title.lower().startswith("http")
-                    or "..." in title
-                    or len(title) < 5
-                ):
-                    continue
-
-                headlines.append({"title": title, "link": link})
-
-            # ✅ Remove duplicates safely
-            unique_titles = set()
-            clean_headlines = []
-            for h in headlines:
-                if h["title"] not in unique_titles:
-                    unique_titles.add(h["title"])
-                    clean_headlines.append(h)
-
-            return clean_headlines
-        else:
-            pass # Continue to fallback
-    except Exception as e:
-        pass # Continue to fallback
-
-    # --- Fallback: Google News RSS ---
+    
     try:
         topic_query = topic.replace(" ", "+") if topic else "Business"
         topic_url = f"https://news.google.com/rss/search?q={topic_query}"
@@ -137,22 +98,17 @@ def get_headlines(topic: str = None, limit: int = 20):
                     continue
 
                 headlines.append({"title": title, "link": link})
-
-            # Remove duplicates again (in case of overlap)
-            unique_titles = set()
-            clean_headlines = []
-            for h in headlines:
-                if h["title"] not in unique_titles:
-                    unique_titles.add(h["title"])
-                    clean_headlines.append(h)
-
-            return clean_headlines
-        else:
-            pass
     except Exception as e:
         pass
+        
+    unique_titles = set()
+    clean_headlines = []
+    for h in headlines:
+        if h["title"] not in unique_titles:
+            unique_titles.add(h["title"])
+            clean_headlines.append(h)
 
-    return []
+    return clean_headlines
 
 
 # ------------------------------------------------------------

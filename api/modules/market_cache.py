@@ -165,8 +165,8 @@ from pathlib import Path as _Path
 import json as _json
 
 _DATA_DIR = _Path(__file__).resolve().parent.parent / "data"
-_CLOSES_PKL = _DATA_DIR / "closes_snapshot.pkl"
-_FUND_JSON = _DATA_DIR / "fundamentals_snapshot.json"
+_CLOSES_PKL = _DATA_DIR / "closes_snapshot.pkl.gz"
+_FUND_JSON = _DATA_DIR / "fundamentals_snapshot.json.gz"
 
 
 def _save_closes_snapshot() -> None:
@@ -175,35 +175,37 @@ def _save_closes_snapshot() -> None:
         with store.lock:
             closes = store.closes
         if closes is not None and len(closes.columns) > 50:
-            closes.to_pickle(_CLOSES_PKL)
+            closes.to_pickle(_CLOSES_PKL, compression="gzip")
     except Exception:
         logger.exception("Closes snapshot save failed")
 
 
 def _save_fundamentals_snapshot() -> None:
     try:
+        import gzip
         _DATA_DIR.mkdir(exist_ok=True)
         with store.lock:
             fund = dict(store.fundamentals)
         if fund:
-            _FUND_JSON.write_text(_json.dumps(fund))
+            _FUND_JSON.write_bytes(gzip.compress(_json.dumps(fund).encode('utf-8')))
     except Exception:
         logger.exception("Fundamentals snapshot save failed")
 
 
 def _load_snapshots() -> bool:
     """Restore last known-good state; returns True if the screener is usable."""
+    import gzip
     loaded = False
     try:
         if _FUND_JSON.exists():
             with store.lock:
-                store.fundamentals.update(_json.loads(_FUND_JSON.read_text()))
+                store.fundamentals.update(_json.loads(gzip.decompress(_FUND_JSON.read_bytes()).decode('utf-8')))
             logger.info("Loaded %d fundamentals from disk", len(store.fundamentals))
     except Exception:
         logger.exception("Fundamentals snapshot load failed")
     try:
         if _CLOSES_PKL.exists():
-            closes = pd.read_pickle(_CLOSES_PKL)
+            closes = pd.read_pickle(_CLOSES_PKL, compression="gzip")
             if INDEX_SYMBOL in closes.columns and len(closes.columns) > 50:
                 valid = [c for c in closes.columns
                          if c != INDEX_SYMBOL and closes[c].dropna().shape[0] >= MIN_HISTORY_ROWS]
