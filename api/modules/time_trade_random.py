@@ -275,9 +275,25 @@ def _facts(fund: dict, is_lender: bool) -> list[dict]:
     return out
 
 
-def draw(exclude: set[str] | None = None) -> dict | None:
-    """Generate one random case; returns the anonymised dossier and registers
-    the identity so /decide can reveal it."""
+def draw(exclude: set[str] | None = None, use_pool: bool = True) -> dict | None:
+    """One random case: from the pre-built pool when it exists, otherwise
+    generated live.
+
+    `use_pool=False` forces live generation — the offline pool builder needs
+    that, since reading the pool it is trying to write would just recycle
+    whatever is already there."""
+    from modules import time_trade as _tt
+    p = _tt.pool() if use_pool else {"random": []}
+    if p["random"]:
+        ex = exclude or set()
+        # `exclude` holds symbols already revealed this session.
+        choices = [cid for cid in p["random"]
+                   if (p["by_id"][cid].get("_reveal") or {}).get("symbol") not in ex]
+        if not choices:
+            choices = p["random"]          # seen them all — start over
+        pick = p["by_id"][random.Random().choice(choices)]
+        return {k: v for k, v in pick.items() if k != "_reveal"}
+
     pool = _candidates()
     if not pool:
         return None

@@ -14,9 +14,12 @@ Two kinds of data, kept deliberately separate:
     in. Whatever the market did is what the learner sees.
 """
 
+import gzip as _gzip  # noqa: F401  (used via pool())
+import json as _json
 import logging
 import threading
 from datetime import date, datetime
+from pathlib import Path as _Path
 
 import pandas as pd
 
@@ -245,6 +248,42 @@ CASES: list[dict] = [
 
 _CASE_BY_ID = {c["id"]: c for c in CASES}
 
+# ---------------------------------------------------------------------------
+# Pre-built pool (scripts/build_timetrade_pool.py). Dossiers and outcomes are
+# baked offline because they need full price history plus financial statements
+# — data the runtime snapshot does not carry, and which Yahoo will not reliably
+# serve to a datacenter IP. Reading it makes a draw instant and network-free.
+# ---------------------------------------------------------------------------
+_POOL_FILE = _Path(__file__).resolve().parent.parent / "data" / "timetrade_pool.json.gz"
+_pool: dict | None = None
+_pool_lock = threading.Lock()
+
+
+def pool() -> dict:
+    """{'generated_at': str, 'by_id': {...}, 'random': [...], 'classic': [...]}"""
+    global _pool
+    with _pool_lock:
+        if _pool is not None:
+            return _pool
+        data = {"generated_at": None, "by_id": {}, "random": [], "classic": []}
+        try:
+            if _POOL_FILE.exists():
+                import gzip as _gz
+                raw = _json.loads(_gz.decompress(_POOL_FILE.read_bytes()).decode("utf-8"))
+                for c in raw.get("cases", []):
+                    data["by_id"][c["id"]] = c
+                    (data["random"] if c.get("kind") == "random" else data["classic"]).append(c["id"])
+                data["generated_at"] = raw.get("generated_at")
+                logger.info("Try Trade in Time pool: %d cases (%d random)",
+                            len(data["by_id"]), len(data["random"]))
+            else:
+                logger.warning("No case pool at %s — falling back to live fetches",
+                               _POOL_FILE)
+        except Exception:
+            logger.exception("Case pool failed to load")
+        _pool = data
+        return _pool
+
 # Random draws (time_trade_random.py) register here so /case and /decide can
 # serve them exactly like curated ones. Bounded so a long-running process
 # does not accumulate every draw ever made.
@@ -261,6 +300,29 @@ def register_generated(case: dict) -> None:
 
 def _lookup(case_id: str) -> dict | None:
     return _CASE_BY_ID.get(case_id) or _GENERATED.get(case_id)
+
+
+def _money(reveal: dict, amount: float) -> dict:
+    """Fill in the amount-dependent fields of a baked outcome.
+
+    Only these depend on what the learner chose to invest, so the expensive
+    price work stays pre-computed and this stays exact."""
+    p0, p1 = reveal["price_then"], reveal["price_now"]
+    reference = amount if amount > 0 else 25_000.0
+    qty = int(amount // p0) if amount > 0 else 0
+    invested = qty * p0
+    value_now = qty * p1
+    n_growth = (1 + (reveal.get("nifty_pct") or 0) / 100)
+    return {
+        **reveal,
+        "amount": amount,
+        "reference_amount": reference,
+        "qty": qty,
+        "invested": round(invested, 2),
+        "value_now": round(value_now, 2),
+        "pnl": round(value_now - invested, 2),
+        "nifty_value": round((invested if invested else reference) * n_growth, 2),
+    }
 
 # ---------------------------------------------------------------------------
 # Price history: one full-length download per symbol, cached for the process.
@@ -346,6 +408,18 @@ def _pct(a: float | None, b: float | None) -> float | None:
 # ---------------------------------------------------------------------------
 def list_cases() -> list[dict]:
     """Sealed previews — nothing that identifies the company."""
+    p = pool()
+    if p["classic"]:
+        out = []
+        for cid in p["classic"]:
+            c = p["by_id"][cid]
+            out.append({
+                "id": c["id"], "sector": c["sector"], "size": c["size"],
+                "date": c["date"], "period_label": datetime.strptime(
+                    c["date"], "%Y-%m-%d").strftime("%B %Y"),
+                "teaser": next((x["teaser"] for x in CASES if x["id"] == c["id"]), ""),
+            })
+        return out
     return [{
         "id": c["id"],
         "sector": c["sector"],
@@ -380,6 +454,10 @@ def _price_facts(s: pd.Series, when: pd.Timestamp) -> dict:
 def get_case(case_id: str) -> dict | None:
     """The anonymised dossier: curated financials and news, plus price facts
     computed from real history. No symbol, no name."""
+    baked = pool()["by_id"].get(case_id)
+    if baked:
+        return {k: v for k, v in baked.items() if k != "_reveal"}
+
     c = _lookup(case_id)
     if not c:
         return None
@@ -414,6 +492,10 @@ def get_case(case_id: str) -> dict | None:
 
 def decide(case_id: str, amount: float) -> dict | None:
     """Replay real prices from the decision date to today and reveal."""
+    baked = pool()["by_id"].get(case_id)
+    if baked and baked.get("_reveal"):
+        return _money(baked["_reveal"], amount)
+
     c = _lookup(case_id)
     if not c:
         return None
