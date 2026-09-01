@@ -20,7 +20,7 @@ from modules import (
     technicals,
     accuracy
 )
-from modules import market_cache, forecast_engine, watchlist_store, factors as factors_mod
+from modules import market_cache, forecast_engine, watchlist_store, paper_trading, time_trade, time_trade_random, news_sentiment, factors as factors_mod
 from modules import salahkaar
 
 # Configure logging
@@ -488,6 +488,171 @@ async def get_market_pulse():
     return market_cache.get_pulse()
 
 
+# ---------------------------------------------------------------------------
+# Paper trading (Learn tab). Simulated cash only — nothing here touches a
+# broker. Prices are memory reads from the market cache.
+# ---------------------------------------------------------------------------
+class PaperTradeRequest(BaseModel):
+    symbol: str
+    side: str
+    qty: int
+    reason: str = ""
+
+
+def _nifty_price() -> float | None:
+    q = market_cache.get_quote(market_cache.INDEX_SYMBOL)
+    return float(q["price"]) if q and q.get("price") else None
+
+
+def _enrich_paper(state: dict) -> dict:
+    """Mark holdings to market and judge each past trade against today."""
+    nifty_now = _nifty_price()
+    holdings = []
+    holdings_value = 0.0
+    last_buy: dict[str, dict] = {}
+    for t in state["trades"]:
+        if t["side"] == "buy":
+            last_buy[t["symbol"]] = t
+    for sym, h in state["holdings"].items():
+        q = market_cache.get_quote(sym) or {}
+        price = q.get("price")
+        value = price * h["qty"] if price else None
+        pnl = (price - h["avg_cost"]) * h["qty"] if price else None
+        if value:
+            holdings_value += value
+        lb = last_buy.get(sym)
+        holdings.append({
+            "symbol": sym, "name": h.get("name") or sym, "qty": h["qty"],
+            "avg_cost": h["avg_cost"], "price": price, "value": value, "pnl": pnl,
+            "pnl_pct": (price / h["avg_cost"] - 1) * 100 if price else None,
+            "reason": lb["reason"] if lb else None,
+            "bought_at": lb["ts"] if lb else None,
+        })
+    holdings.sort(key=lambda x: -(x["value"] or 0))
+
+    trades = []
+    for t in reversed(state["trades"]):
+        q = market_cache.get_quote(t["symbol"]) or {}
+        now = q.get("price")
+        trades.append({
+            **t, "price_now": now,
+            "move_pct": (now / t["price"] - 1) * 100 if now else None,
+        })
+
+    total = state["cash"] + holdings_value
+    start = state["starting_cash"]
+    ns = state.get("nifty_start")
+    return {
+        "started_at": state["started_at"],
+        "starting_cash": start,
+        "cash": state["cash"],
+        "holdings": holdings,
+        "holdings_value": holdings_value,
+        "total_value": total,
+        "pnl": total - start,
+        "return_pct": (total / start - 1) * 100,
+        "nifty_return_pct": (nifty_now / ns - 1) * 100 if (nifty_now and ns) else None,
+        "trades": trades,
+    }
+
+
+@app.get("/api/paper")
+async def get_paper_portfolio():
+    return _enrich_paper(paper_trading.get_state(_nifty_price()))
+
+
+@app.post("/api/paper/trade")
+async def paper_trade(req: PaperTradeRequest):
+    sym = req.symbol.strip().upper()
+    q = market_cache.get_quote(sym)
+    if not q or not q.get("price"):
+        # Unknown symbol: one cached fetch in a worker so the loop stays free.
+        import asyncio
+        loop = asyncio.get_event_loop()
+        hist = await loop.run_in_executor(None, market_cache.get_history, sym, 2)
+        if hist is None or hist.empty:
+            raise HTTPException(status_code=404, detail=f"No price available for {sym}")
+        q = {"price": float(hist.iloc[-1])}
+    row = market_cache.get_screener_row(sym) or {}
+    fund = market_cache.get_fundamental(sym) or {}
+    name = row.get("name") or fund.get("name") or sym.replace(".NS", "")
+    try:
+        state = paper_trading.trade(
+            sym, req.side, req.qty, float(q["price"]), req.reason,
+            name=name, nifty_price=_nifty_price(),
+        )
+    except paper_trading.TradeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return _enrich_paper(state)
+
+
+@app.post("/api/paper/reset")
+async def paper_reset():
+    return _enrich_paper(paper_trading.reset(_nifty_price()))
+
+
+# ---------------------------------------------------------------------------
+# Try Trade in Time — blind historical decisions, real outcomes.
+# ---------------------------------------------------------------------------
+class TimeTradeDecision(BaseModel):
+    id: str
+    amount: float = 0.0
+
+
+@app.get("/api/timetrade/cases")
+async def timetrade_cases():
+    return {"cases": time_trade.list_cases()}
+
+
+@app.get("/api/timetrade/case/{case_id}")
+async def timetrade_case(case_id: str):
+    import asyncio
+    loop = asyncio.get_event_loop()
+    # First call per symbol downloads full history; keep it off the loop.
+    data = await loop.run_in_executor(None, time_trade.get_case, case_id)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Unknown case")
+    return data
+
+
+class TimeTradeRandomRequest(BaseModel):
+    exclude: list[str] = []
+
+
+@app.post("/api/timetrade/random")
+async def timetrade_random(req: TimeTradeRandomRequest):
+    """Draw a fresh random case: a different company and date every time,
+    with the dossier computed from statements and prices as of that date."""
+    import asyncio
+    loop = asyncio.get_event_loop()
+    data = await loop.run_in_executor(None, time_trade_random.draw, set(req.exclude))
+    if data is None:
+        raise HTTPException(status_code=503, detail="Could not build a case right now — try again.")
+    return data
+
+
+@app.post("/api/timetrade/decide")
+async def timetrade_decide(req: TimeTradeDecision):
+    import asyncio
+    if req.amount < 0 or req.amount > 10_000_000:
+        raise HTTPException(status_code=422, detail="amount must be between 0 and ₹1 crore")
+    loop = asyncio.get_event_loop()
+    data = await loop.run_in_executor(None, time_trade.decide, req.id, req.amount)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Unknown case")
+    if "error" in data:
+        raise HTTPException(status_code=503, detail=data["error"])
+    return data
+
+
+@app.get("/api/metrics/distributions")
+async def get_metric_distributions():
+    """Percentile bands per metric across the live universe, plus per-sector
+    medians. Powers the metric-education UI, which shows a learner where a
+    stock sits against the real market instead of a textbook range."""
+    return market_cache.get_metric_distributions()
+
+
 @app.get("/api/market/sectors")
 async def get_sector_rotation():
     """RRG-style sector rotation: relative strength vs NIFTY + momentum with
@@ -680,34 +845,25 @@ async def get_stock_news(symbol: str):
         for suffix in (" Limited", " Ltd.", " Ltd"):
             if company.endswith(suffix):
                 company = company[: -len(suffix)]
-        headlines = data_fetch.get_headlines(f"{company} stock") or []
-        if not headlines:
-            headlines = data_fetch.get_headlines(company) or []
-        items = []
-        for h in headlines[:15]:
-            title = h.get("title", "")
-            try:
-                # Hybrid: 70% FinBERT (finance-tuned) + 30% VADER (lexical)
-                s = sentiment._get_hybrid_score(title)
-            except Exception:
-                try:
-                    s = sentiment._sia.polarity_scores(title)["compound"]
-                except Exception:
-                    s = 0.0
-            items.append({
-                "title": title,
-                "link": h.get("link", "#"),
-                "sentiment": round(float(s), 2),
-                "label": "positive" if s > 0.15 else "negative" if s < -0.15 else "neutral",
-            })
-        avg = round(sum(i["sentiment"] for i in items) / len(items), 2) if items else None
-        dist = {
-            "positive": sum(1 for i in items if i["label"] == "positive"),
-            "neutral": sum(1 for i in items if i["label"] == "neutral"),
-            "negative": sum(1 for i in items if i["label"] == "negative"),
-        }
-        return {"symbol": sym, "company": company, "avg_sentiment": avg,
-                "distribution": dist, "items": items}
+        # Yahoo first: it is the only source that yields a real publisher URL
+        # and a summary, so those items can be scored on their text. Google
+        # News adds Indian coverage but hides the target behind an encrypted
+        # redirect, so those are headline-only and labelled as such.
+        merged = news_sentiment.yahoo_news(sym)
+        seen = {i["title"].lower() for i in merged}
+        google = data_fetch.get_headlines(f"{company} stock") or []
+        if not google:
+            google = data_fetch.get_headlines(company) or []
+        for h in google:
+            t = (h.get("title") or "").strip()
+            if t and t.lower() not in seen:
+                seen.add(t.lower())
+                merged.append({"title": t, "link": h.get("link", "#"),
+                               "summary": "", "source": None, "published": None})
+        # Full-article, finance-contextual scoring: reads each story, keeps
+        # only the sentences about this company, and applies an Indian-market
+        # event lexicon over FinBERT.
+        return news_sentiment.analyse(merged, company, sym, limit=18)
 
     payload = await loop.run_in_executor(None, _fetch)
     _news_cache[sym] = {"ts": _time.time(), "payload": payload}

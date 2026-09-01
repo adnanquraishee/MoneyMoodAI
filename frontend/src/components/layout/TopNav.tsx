@@ -10,6 +10,7 @@ const LINKS = [
     { label: 'Stock Desk', to: '/app/stock' },
     { label: 'Watchlist', to: '/app/watchlist' },
     { label: 'Compare', to: '/app/compare' },
+    { label: 'Learn', to: '/app/learn' },
 ];
 
 /** Floating glass navigation bar — MoneyMood.ai brand + global search. */

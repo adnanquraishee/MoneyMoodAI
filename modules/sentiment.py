@@ -10,17 +10,40 @@ nltk.download("vader_lexicon", quiet=True)
 # Load FinBERT model once
 _tokenizer = AutoTokenizer.from_pretrained("yiyanghkust/finbert-tone")
 _model = AutoModelForSequenceClassification.from_pretrained("yiyanghkust/finbert-tone")
-_labels = ["negative", "neutral", "positive"]
 _sia = SentimentIntensityAnalyzer() # Load VADER once
 
+# Read the label order from the model instead of assuming it. finbert-tone
+# ships {0: Neutral, 1: Positive, 2: Negative} — NOT the negative/neutral/
+# positive order that is conventional elsewhere. Hardcoding indices here had
+# the model computing (negative - neutral), which inverted the sign of every
+# score and fed that inversion into the news tab and the forecast engine.
+def _label_index(name: str) -> int:
+    for i, lbl in _model.config.id2label.items():
+        if lbl.strip().lower() == name:
+            return int(i)
+    raise KeyError(name)
+
+
+_POS_IDX = _label_index("positive")
+_NEG_IDX = _label_index("negative")
+_labels = [_model.config.id2label[i].strip().lower() for i in sorted(_model.config.id2label)]
+
+
+def finbert_probs(text: str) -> tuple[float, float, float]:
+    """(negative, neutral, positive) probabilities for one piece of text."""
+    inputs = _tokenizer(text, return_tensors="pt", truncation=True, max_length=512)
+    with torch.no_grad():
+        logits = _model(**inputs).logits
+    p = torch.nn.functional.softmax(logits, dim=-1)[0]
+    neg, pos = float(p[_NEG_IDX]), float(p[_POS_IDX])
+    return neg, max(0.0, 1.0 - neg - pos), pos
+
+
 def finbert_score(text):
-    """Compute FinBERT sentiment score (-1 to 1)."""
+    """FinBERT sentiment score in [-1, 1]: positive probability minus negative."""
     try:
-        inputs = _tokenizer(text, return_tensors="pt", truncation=True, max_length=512)
-        with torch.no_grad():
-            logits = _model(**inputs).logits
-        probs = torch.nn.functional.softmax(logits, dim=-1)
-        return float(probs[0, 2] - probs[0, 0])  # Positive - Negative
+        neg, _, pos = finbert_probs(text)
+        return pos - neg
     except Exception:
         return 0.0
 

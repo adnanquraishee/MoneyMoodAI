@@ -6,6 +6,8 @@ import { TopNav } from './components/layout/TopNav';
 import { AppBackdrop } from './components/effects/AppBackdrop';
 import { Salahkaar } from './components/features/Salahkaar';
 import { CommandPalette } from './components/features/CommandPalette';
+import { MetricLearnProvider } from './components/ui/MetricLearn';
+import { Disclaimer } from './components/ui/Disclaimer';
 import { Sectors } from './pages/Sectors';
 import { Dashboard } from './pages/Dashboard';
 import { Compare } from './pages/Compare';
@@ -14,6 +16,7 @@ import { Screener } from './pages/Screener';
 import { Heatmap } from './pages/Heatmap';
 import { Watchlist } from './pages/Watchlist';
 import { StockDesk } from './pages/StockDesk';
+import { Learn } from './pages/Learn';
 import './index.css';
 
 /** Old routes (analysis/technical/forecast/quant) now live as Stock Desk tabs. */
@@ -30,8 +33,11 @@ function LegacyRedirect({ tab }: { tab?: string }) {
 function AppContent() {
   const location = useLocation();
   const isDashboard = location.pathname === '/' || location.pathname === '';
+  // Routes here are mounted under /app/*, so the home path is /app or /app/.
+  const isAppHome = location.pathname === '/app' || location.pathname === '/app/';
 
   return (
+    <MetricLearnProvider>
     <div className="min-h-screen text-white relative">
       <AppBackdrop />
       <TopNav />
@@ -52,6 +58,7 @@ function AppContent() {
               <Route path="/watchlist" element={<Watchlist />} />
               <Route path="/stock" element={<StockDesk />} />
               <Route path="/compare" element={<Compare />} />
+              <Route path="/learn" element={<Learn />} />
               {/* Legacy routes → Stock Desk tabs */}
               <Route path="/analysis" element={<LegacyRedirect tab="overview" />} />
               <Route path="/technical" element={<LegacyRedirect tab="technicals" />} />
@@ -61,9 +68,14 @@ function AppContent() {
           </motion.div>
         </AnimatePresence>
       </main>
+      {/* Big on the app home, compact strip elsewhere — present on every page. */}
+      <footer className="relative z-10 mt-16">
+        <Disclaimer variant={isAppHome ? 'hero' : 'bar'} />
+      </footer>
       <Salahkaar />
       <CommandPalette />
     </div>
+    </MetricLearnProvider>
   );
 }
 

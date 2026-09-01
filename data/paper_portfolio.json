@@ -1,0 +1,50 @@
+{
+  "started_at": "2026-09-01T20:04:56.711721+00:00",
+  "starting_cash": 100000.0,
+  "cash": 46344.998779296875,
+  "nifty_start": 24080.400390625,
+  "holdings": {
+    "TCS.NS": {
+      "qty": 20,
+      "avg_cost": 2399.300048828125,
+      "name": "Tata Consultancy Services Limited"
+    },
+    "INFY.NS": {
+      "qty": 5,
+      "avg_cost": 1133.800048828125,
+      "name": "Infosys Limited"
+    }
+  },
+  "trades": [
+    {
+      "id": "33be14c741",
+      "ts": "2026-09-01T20:04:56.745336+00:00",
+      "symbol": "TCS.NS",
+      "name": "Tata Consultancy Services Limited",
+      "side": "buy",
+      "qty": 10,
+      "price": 2399.300048828125,
+      "reason": "P/E 16.7x looks cheap for an IT company; ROE 47%"
+    },
+    {
+      "id": "737c27e638",
+      "ts": "2026-09-01T20:07:16.239827+00:00",
+      "symbol": "INFY.NS",
+      "name": "Infosys Limited",
+      "side": "buy",
+      "qty": 5,
+      "price": 1133.800048828125,
+      "reason": "Momentum is negative but the business is steady; testing whether a falling knife bounces"
+    },
+    {
+      "id": "5171917632",
+      "ts": "2026-09-01T21:04:10.502234+00:00",
+      "symbol": "TCS.NS",
+      "name": "Tata Consultancy Services Limited",
+      "side": "buy",
+      "qty": 10,
+      "price": 2399.300048828125,
+      "reason": "TATA Brand value"
+    }
+  ]
+}

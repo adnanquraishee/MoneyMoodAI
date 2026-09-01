@@ -495,6 +495,129 @@ def get_screener() -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Metric distributions — powers the "learn this metric" UI. For every ratio we
+# teach, we show the learner where THIS stock sits against the real NSE
+# universe rather than a textbook rule of thumb, so the context is honest and
+# stays current as the market re-rates. Pure memory read; cached 10 min.
+# ---------------------------------------------------------------------------
+# Reported ratios come from the fundamentals cache, which covers the whole
+# fetched universe. Factor and price statistics only exist on scored rows, so
+# they come from the screener. Taking each from its richer source is the
+# difference between a percentile drawn from ~2,000 companies and one drawn
+# from the few dozen scored so far.
+FUNDAMENTAL_METRICS = (
+    "pe", "forward_pe", "peg", "pb", "ps", "roe", "roa", "profit_margin",
+    "operating_margin", "revenue_growth", "earnings_growth", "debt_to_equity",
+    "current_ratio", "dividend_yield",
+)
+FACTOR_METRICS = (
+    "beta", "volatility", "rsi", "sharpe", "alpha", "momentum", "score",
+    "return_1y",
+)
+DISTRIBUTION_METRICS = FUNDAMENTAL_METRICS + FACTOR_METRICS
+
+# Values beyond these bounds are data errors or degenerate cases (a P/E of
+# 4000 from a near-zero denominator), not signal. Excluding them keeps the
+# percentiles describing the market instead of the outliers.
+_DIST_BOUNDS = {
+    "pe": (0.0, 300.0),
+    "forward_pe": (0.0, 300.0),
+    "peg": (-10.0, 20.0),
+    "pb": (0.0, 60.0),
+    "roe": (-2.0, 2.0),
+    "profit_margin": (-2.0, 2.0),
+    "revenue_growth": (-1.0, 5.0),
+    "earnings_growth": (-1.0, 5.0),
+    "debt_to_equity": (0.0, 20.0),
+    "dividend_yield": (0.0, 0.25),
+    "beta": (-2.0, 5.0),
+    "volatility": (0.0, 3.0),
+    "sharpe": (-5.0, 5.0),
+    "alpha": (-2.0, 2.0),
+    "momentum": (-1.0, 5.0),
+    "ps": (0.0, 60.0),
+    "roa": (-1.0, 1.0),
+    "operating_margin": (-2.0, 2.0),
+    "current_ratio": (0.0, 30.0),
+    "return_1y": (-1.0, 10.0),
+}
+
+_MIN_SECTOR_SAMPLES = 8
+_distributions_cache: dict = {"at": 0.0, "data": None}
+_DISTRIBUTIONS_TTL = 600
+
+
+def _percentiles(values: list[float]) -> dict:
+    """p10/p25/p50/p75/p90 from a pre-sorted list."""
+    n = len(values)
+
+    def at(q: float) -> float:
+        return float(values[min(n - 1, max(0, int(q * n)))])
+
+    return {
+        "count": n,
+        "p10": round(at(0.10), 4),
+        "p25": round(at(0.25), 4),
+        "p50": round(at(0.50), 4),
+        "p75": round(at(0.75), 4),
+        "p90": round(at(0.90), 4),
+    }
+
+
+def get_metric_distributions() -> dict:
+    """Percentile bands per metric across the scored universe, plus per-sector
+    medians. The UI uses these to answer "is 25 a high P/E?" with this
+    market's actual numbers."""
+    import time as _time
+    now = _time.time()
+    if _distributions_cache["data"] is not None and \
+            now - _distributions_cache["at"] < _DISTRIBUTIONS_TTL:
+        return _distributions_cache["data"]
+
+    with store.lock:
+        rows = list(store.screener_rows)
+        funds = list(store.fundamentals.values())
+        as_of = store.as_of
+
+    out: dict = {
+        "as_of": as_of,
+        "universe_size": max(len(rows), len(funds)),
+        "metrics": {},
+    }
+    for key in DISTRIBUTION_METRICS:
+        source = funds if key in FUNDAMENTAL_METRICS else rows
+        lo, hi = _DIST_BOUNDS.get(key, (float("-inf"), float("inf")))
+        vals: list[float] = []
+        by_sector: dict[str, list[float]] = {}
+        for r in source:
+            v = r.get(key)
+            if not isinstance(v, (int, float)) or isinstance(v, bool):
+                continue
+            v = float(v)
+            if v != v or v in (float("inf"), float("-inf")) or not (lo <= v <= hi):
+                continue
+            vals.append(v)
+            sec = r.get("sector")
+            if sec:
+                by_sector.setdefault(sec, []).append(v)
+        if len(vals) < 20:
+            continue
+        vals.sort()
+        entry = _percentiles(vals)
+        sectors = {}
+        for sec, sv in by_sector.items():
+            if len(sv) >= _MIN_SECTOR_SAMPLES:
+                sv.sort()
+                sectors[sec] = {"count": len(sv), "p50": round(_percentiles(sv)["p50"], 4)}
+        entry["sectors"] = sectors
+        out["metrics"][key] = entry
+
+    _distributions_cache["at"] = now
+    _distributions_cache["data"] = out
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Sector rotation (RRG-style): per-sector relative strength vs NIFTY and its
 # momentum, sampled weekly so the UI can draw motion trails. Pure memory read
 # over the closes matrix; cached 10 min because it scans ~2k columns.

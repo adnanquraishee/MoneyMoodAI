@@ -20,6 +20,11 @@ import type {
     CalendarResponse,
     LongTermResult,
     SectorRotationResponse,
+    MetricDistributions,
+    PaperPortfolio,
+    TimeTradeCasePreview,
+    TimeTradeCase,
+    TimeTradeReveal,
 } from './types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:6150';
@@ -140,6 +145,45 @@ export const api = {
 
     getScreener: async (): Promise<ScreenerResponse> => {
         const response = await apiClient.get<ScreenerResponse>('/api/screener');
+        return response.data;
+    },
+
+    /** Percentile bands per metric across the live universe — the real-market
+     *  context behind the metric-education UI. */
+    getMetricDistributions: async (): Promise<MetricDistributions> => {
+        const response = await apiClient.get<MetricDistributions>('/api/metrics/distributions');
+        return response.data;
+    },
+
+    // ---- paper trading (Learn tab) ----
+    getPaper: async (): Promise<PaperPortfolio> => {
+        const response = await apiClient.get<PaperPortfolio>('/api/paper');
+        return response.data;
+    },
+    paperTrade: async (body: { symbol: string; side: 'buy' | 'sell'; qty: number; reason: string }): Promise<PaperPortfolio> => {
+        const response = await apiClient.post<PaperPortfolio>('/api/paper/trade', body);
+        return response.data;
+    },
+    paperReset: async (): Promise<PaperPortfolio> => {
+        const response = await apiClient.post<PaperPortfolio>('/api/paper/reset');
+        return response.data;
+    },
+
+    // ---- Try Trade in Time ----
+    getTimeTradeCases: async (): Promise<{ cases: TimeTradeCasePreview[] }> => {
+        const response = await apiClient.get<{ cases: TimeTradeCasePreview[] }>('/api/timetrade/cases');
+        return response.data;
+    },
+    getTimeTradeCase: async (id: string): Promise<TimeTradeCase> => {
+        const response = await apiClient.get<TimeTradeCase>(`/api/timetrade/case/${encodeURIComponent(id)}`);
+        return response.data;
+    },
+    timeTradeRandom: async (exclude: string[] = []): Promise<TimeTradeCase> => {
+        const response = await apiClient.post<TimeTradeCase>('/api/timetrade/random', { exclude });
+        return response.data;
+    },
+    timeTradeDecide: async (body: { id: string; amount: number }): Promise<TimeTradeReveal> => {
+        const response = await apiClient.post<TimeTradeReveal>('/api/timetrade/decide', body);
         return response.data;
     },
 

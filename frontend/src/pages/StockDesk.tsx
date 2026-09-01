@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, createContext, useContext } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -8,14 +8,14 @@ import {
 import {
     Star, TrendingUp, TrendingDown, CandlestickChart, LayoutGrid,
     Activity, LineChart as LineChartIcon, CheckCircle2, XCircle,
-    Newspaper, ExternalLink,
+    Newspaper, ExternalLink, Lock,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { cn } from '../lib/utils';
 import { InfoTip } from '../components/ui/InfoTip';
 import { SearchBox } from '../components/layout/SearchBox';
 import { CandleChart } from '../components/charts/CandleChart';
-import { QuantForecastPanel } from '../components/features/QuantForecastPanel';
+// QuantForecastPanel stays in the codebase — the tab is locked, not removed.
 import { ConvictionOrb } from '../components/3d/ConvictionOrb';
 import { RatioBars3D } from '../components/3d/RatioBars3D';
 
@@ -36,12 +36,30 @@ const cr = (v: number | null | undefined) => {
 };
 
 // ---------- small building blocks ----------
-function Metric({ label, value, term, tone }: {
+
+/** Sector and company name for the metric lessons, set once per stock so each
+ *  Metric tile can teach in context without threading props through the page. */
+const StockContext = createContext<{
+    sector?: string | null;
+    name?: string | null;
+    /** Every metric value for this stock, keyed by glossary term. */
+    values?: Record<string, number | null | undefined>;
+}>({});
+
+function Metric({ label, value, term, tone, raw }: {
     label: string; value: string; term?: string; tone?: 'up' | 'down';
+    /** Numeric value in the raw stored scale, so the tooltip can judge it. */
+    raw?: number | null;
 }) {
+    const { sector, name, values } = useContext(StockContext);
     return (
         <div className="rounded-xl bg-white/[0.04] border border-white/5 px-4 py-3">
-            <p className="text-[11px] text-gray-500 flex items-center">{label}{term && <InfoTip term={term} />}</p>
+            <p className="text-[11px] text-gray-500 flex items-center">
+                {label}
+                {term && (
+                    <InfoTip term={term} value={raw} sector={sector} subject={name} values={values} />
+                )}
+            </p>
             <p className={cn('font-bold mt-1 tabular-nums',
                 tone === 'up' ? 'text-emerald-400' : tone === 'down' ? 'text-rose-400' : 'text-white')}>
                 {value}
@@ -104,7 +122,21 @@ function OverviewTab({ symbol }: { symbol: string }) {
     const f = data.fundamentals;
     const fac = data.factors ?? {};
 
+    // Keyed by glossary term so a lesson can move to any sibling metric and
+    // still be about this company.
+    const metricValues: Record<string, number | null | undefined> = {
+        pe: f.pe, forward_pe: f.forward_pe, peg: f.peg, pb: f.pb,
+        dividend_yield: f.dividend_yield, roe: f.roe, roa: f.roa,
+        profit_margin: f.profit_margin, operating_margin: f.operating_margin,
+        revenue_growth: f.revenue_growth, earnings_growth: f.earnings_growth,
+        debt_to_equity: f.debt_to_equity, current_ratio: f.current_ratio,
+        beta: fac.beta as number, volatility: fac.volatility as number,
+        sharpe: (fac as any).sharpe, alpha: fac.alpha as number,
+        momentum: fac.momentum as number, conviction: fac.score as number,
+    };
+
     return (
+        <StockContext.Provider value={{ sector: f.sector, name: f.name, values: metricValues }}>
         <div className="space-y-6">
             {/* Conviction hero: 3D orb + factor strip */}
             <div className="glass-card p-0 overflow-hidden !transform-none">
@@ -116,7 +148,7 @@ function OverviewTab({ symbol }: { symbol: string }) {
                         />
                         <div className="absolute bottom-3 left-0 right-0 text-center pointer-events-none">
                             <p className="text-[10px] uppercase tracking-[0.25em] text-gray-500">
-                                Conviction<InfoTip term="conviction" />
+                                Conviction<InfoTip term="conviction" value={fac.score as number} sector={f.sector} subject={f.name} values={metricValues} />
                             </p>
                             <p className={cn('text-3xl font-bold tabular-nums drop-shadow-[0_0_12px_rgba(0,0,0,0.8)]',
                                 fac.score == null ? 'text-gray-400'
@@ -189,14 +221,14 @@ function OverviewTab({ symbol }: { symbol: string }) {
                 <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-3">Valuation</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-3">
                     <Metric label="Market Cap" term="market_cap" value={cr(f.market_cap)} />
-                    <Metric label="P/E (TTM)" term="pe" value={num(f.pe, 1)} />
-                    <Metric label="Forward P/E" term="forward_pe" value={num(f.forward_pe, 1)} />
-                    <Metric label="PEG" term="peg" value={num(f.peg)} />
-                    <Metric label="P/B" term="pb" value={num(f.pb)} />
+                    <Metric label="P/E (TTM)" term="pe" raw={f.pe} value={num(f.pe, 1)} />
+                    <Metric label="Forward P/E" term="forward_pe" raw={f.forward_pe} value={num(f.forward_pe, 1)} />
+                    <Metric label="PEG" term="peg" raw={f.peg} value={num(f.peg)} />
+                    <Metric label="P/B" term="pb" raw={f.pb} value={num(f.pb)} />
                     <Metric label="P/S" term="ps" value={num(f.ps)} />
                     <Metric label="EPS (TTM)" term="eps" value={inr(f.eps)} />
                     <Metric label="Book Value" value={inr(f.book_value)} />
-                    <Metric label="Dividend Yield" term="dividend_yield" value={pct(f.dividend_yield, 2)} />
+                    <Metric label="Dividend Yield" term="dividend_yield" raw={f.dividend_yield} value={pct(f.dividend_yield, 2)} />
                 </div>
             </section>
 
@@ -204,12 +236,12 @@ function OverviewTab({ symbol }: { symbol: string }) {
             <section>
                 <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-3">Profitability & Growth</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-3">
-                    <Metric label="ROE" term="roe" value={pct(f.roe)} tone={f.roe != null ? (f.roe >= 0.15 ? 'up' : f.roe < 0.08 ? 'down' : undefined) : undefined} />
-                    <Metric label="ROA" term="roa" value={pct(f.roa)} />
-                    <Metric label="Net Margin" term="profit_margin" value={pct(f.profit_margin)} />
-                    <Metric label="Op. Margin" term="operating_margin" value={pct(f.operating_margin)} />
-                    <Metric label="Revenue Growth" term="revenue_growth" value={pct(f.revenue_growth)} tone={f.revenue_growth != null ? (f.revenue_growth >= 0 ? 'up' : 'down') : undefined} />
-                    <Metric label="Earnings Growth" term="earnings_growth" value={pct(f.earnings_growth)} tone={f.earnings_growth != null ? (f.earnings_growth >= 0 ? 'up' : 'down') : undefined} />
+                    <Metric label="ROE" term="roe" raw={f.roe} value={pct(f.roe)} tone={f.roe != null ? (f.roe >= 0.15 ? 'up' : f.roe < 0.08 ? 'down' : undefined) : undefined} />
+                    <Metric label="ROA" term="roa" raw={f.roa} value={pct(f.roa)} />
+                    <Metric label="Net Margin" term="profit_margin" raw={f.profit_margin} value={pct(f.profit_margin)} />
+                    <Metric label="Op. Margin" term="operating_margin" raw={f.operating_margin} value={pct(f.operating_margin)} />
+                    <Metric label="Revenue Growth" term="revenue_growth" raw={f.revenue_growth} value={pct(f.revenue_growth)} tone={f.revenue_growth != null ? (f.revenue_growth >= 0 ? 'up' : 'down') : undefined} />
+                    <Metric label="Earnings Growth" term="earnings_growth" raw={f.earnings_growth} value={pct(f.earnings_growth)} tone={f.earnings_growth != null ? (f.earnings_growth >= 0 ? 'up' : 'down') : undefined} />
                 </div>
             </section>
 
@@ -217,16 +249,16 @@ function OverviewTab({ symbol }: { symbol: string }) {
             <section>
                 <h3 className="text-sm font-bold text-gray-300 uppercase tracking-wider mb-3">Risk & Performance</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-3">
-                    <Metric label="Beta" term="beta" value={num(fac.beta as number)} />
-                    <Metric label="Volatility (1Y)" term="volatility" value={pct(fac.volatility as number)} />
-                    <Metric label="Sharpe" term="sharpe" value={num((fac as any).sharpe)} tone={(fac as any).sharpe != null ? ((fac as any).sharpe >= 1 ? 'up' : (fac as any).sharpe < 0 ? 'down' : undefined) : undefined} />
+                    <Metric label="Beta" term="beta" raw={fac.beta as number} value={num(fac.beta as number)} />
+                    <Metric label="Volatility (1Y)" term="volatility" raw={fac.volatility as number} value={pct(fac.volatility as number)} />
+                    <Metric label="Sharpe" term="sharpe" raw={(fac as any).sharpe} value={num((fac as any).sharpe)} tone={(fac as any).sharpe != null ? ((fac as any).sharpe >= 1 ? 'up' : (fac as any).sharpe < 0 ? 'down' : undefined) : undefined} />
                     <Metric label="Treynor" term="treynor" value={num(fac.treynor as number)} />
-                    <Metric label="Jensen's α" term="alpha" value={fac.alpha != null ? pct(fac.alpha as number) : '—'} tone={fac.alpha != null ? ((fac.alpha as number) >= 0 ? 'up' : 'down') : undefined} />
+                    <Metric label="Jensen's α" term="alpha" raw={fac.alpha as number} value={fac.alpha != null ? pct(fac.alpha as number) : '—'} tone={fac.alpha != null ? ((fac.alpha as number) >= 0 ? 'up' : 'down') : undefined} />
                     <Metric label="1Y Return" value={fac.return_1y != null ? pct(fac.return_1y as number) : '—'} tone={fac.return_1y != null ? ((fac.return_1y as number) >= 0 ? 'up' : 'down') : undefined} />
-                    <Metric label="12-1 Momentum" term="momentum" value={fac.momentum != null ? pct(fac.momentum as number) : '—'} />
+                    <Metric label="12-1 Momentum" term="momentum" raw={fac.momentum as number} value={fac.momentum != null ? pct(fac.momentum as number) : '—'} />
                     <Metric label="From 52W High" term="pct_52w_high" value={fac.pct_from_52w_high != null ? `${Number(fac.pct_from_52w_high).toFixed(1)}%` : '—'} />
-                    <Metric label="Debt / Equity" term="debt_to_equity" value={num(f.debt_to_equity)} />
-                    <Metric label="Current Ratio" term="current_ratio" value={num(f.current_ratio)} />
+                    <Metric label="Debt / Equity" term="debt_to_equity" raw={f.debt_to_equity} value={num(f.debt_to_equity)} />
+                    <Metric label="Current Ratio" term="current_ratio" raw={f.current_ratio} value={num(f.current_ratio)} />
                 </div>
             </section>
 
@@ -244,6 +276,7 @@ function OverviewTab({ symbol }: { symbol: string }) {
                 </section>
             )}
         </div>
+        </StockContext.Provider>
     );
 }
 
@@ -410,7 +443,13 @@ function NewsTab({ symbol }: { symbol: string }) {
                 return (
                     <div className="glass-card !transform-none p-4">
                         <p className="text-[11px] text-gray-500 uppercase tracking-wider mb-2">
-                            AI sentiment breakdown (FinBERT + VADER)<InfoTip term="sentiment" />
+                            Sentiment breakdown<InfoTip term="sentiment" />
+                            {data.articles_read != null && (
+                                <span className="ml-2 normal-case tracking-normal text-gray-600">
+                                    · {data.articles_read} of {data.items.length} read in full
+                                    {data.off_topic ? `, ${data.off_topic} not about this company` : ''}
+                                </span>
+                            )}
                         </p>
                         <div className="flex h-2.5 rounded-full overflow-hidden bg-white/5">
                             <div className="bg-emerald-400/80" style={{ width: `${(d.positive / total) * 100}%` }} />
@@ -429,23 +468,71 @@ function NewsTab({ symbol }: { symbol: string }) {
                 <div className="glass-card p-8 text-center text-sm text-gray-500">No recent headlines found for this company.</div>
             )}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                {data.items.map((n, i) => (
-                    <a
-                        key={i} href={n.link} target="_blank" rel="noopener noreferrer"
-                        className="glass-card !transform-none p-4 flex items-start gap-3 group hover:border-[var(--teal)]/30"
-                    >
-                        <span className={cn('mt-1 w-2 h-2 rounded-full shrink-0',
-                            n.label === 'positive' ? 'bg-emerald-400'
-                                : n.label === 'negative' ? 'bg-rose-400' : 'bg-gray-500')} />
-                        <span className="flex-1 text-sm text-gray-200 leading-snug group-hover:text-white transition-colors">
-                            {n.title}
-                        </span>
-                        <ExternalLink size={13} className="text-gray-600 group-hover:text-[var(--teal)] shrink-0 mt-1 transition-colors" />
-                    </a>
-                ))}
+                {data.items.map((n, i) => {
+                    const off = n.basis === 'off-topic' || n.basis === 'uninformative';
+                    return (
+                        <a
+                            key={i} href={n.link} target="_blank" rel="noopener noreferrer"
+                            className={cn('glass-card !transform-none p-4 flex items-start gap-3 group hover:border-[var(--teal)]/30',
+                                off && 'opacity-45')}
+                        >
+                            <span className={cn('mt-1 w-2 h-2 rounded-full shrink-0',
+                                off ? 'bg-gray-700'
+                                    : n.label === 'positive' ? 'bg-emerald-400'
+                                        : n.label === 'negative' ? 'bg-rose-400' : 'bg-gray-500')} />
+                            <span className="flex-1 min-w-0">
+                                <span className="block text-sm text-gray-200 leading-snug group-hover:text-white transition-colors">
+                                    {n.title}
+                                </span>
+                                <span className="flex items-center gap-2 flex-wrap mt-1.5 text-[10px] text-gray-600">
+                                    {n.source && <span>{n.source}</span>}
+                                    {/* Say which evidence the score rests on, rather than implying
+                                        every item was read in full. */}
+                                    {n.basis === 'article' && <span className="text-[var(--teal)]/70">full article read</span>}
+                                    {n.basis === 'headline' && <span>headline only</span>}
+                                    {n.basis === 'off-topic' && <span>not about this company — not counted</span>}
+                                    {n.basis === 'uninformative' && <span>round-up — not counted</span>}
+                                    {n.relevance === 'mention' && !off && <span>passing mention</span>}
+                                    {!off && (
+                                        <span className={cn('font-semibold',
+                                            n.sentiment > 0.15 ? 'text-emerald-400/80'
+                                                : n.sentiment < -0.15 ? 'text-rose-400/80' : 'text-gray-500')}>
+                                            {n.sentiment >= 0 ? '+' : ''}{n.sentiment.toFixed(2)}
+                                        </span>
+                                    )}
+                                </span>
+                            </span>
+                            <ExternalLink size={13} className="text-gray-600 group-hover:text-[var(--teal)] shrink-0 mt-1 transition-colors" />
+                        </a>
+                    );
+                })}
             </div>
-            <p className="text-[11px] text-gray-600">
-                Source: Google News · each headline scored by a FinBERT + VADER hybrid. Dot color = tone of the headline.
+            <p className="text-[11px] text-gray-600 leading-relaxed">
+                Sources: Yahoo Finance and Google News. Where the publisher page can be fetched we score the
+                article text, keeping only the sentences that name this company; otherwise we fall back to the
+                headline and label it as such. Scoring uses FinBERT with an Indian-market event lexicon
+                (order wins, promoter pledges, SEBI action, rating changes). Stories that turn out not to be
+                about this company are shown greyed out and excluded from the average.
+            </p>
+        </div>
+    );
+}
+
+// ---------- Quant Forecast: temporarily locked ----------
+function ForecastComingSoon() {
+    return (
+        <div className="glass-card !transform-none p-10 md:p-16 text-center">
+            <div className="mx-auto w-14 h-14 rounded-2xl bg-[var(--teal)]/10 border border-[var(--teal)]/25 flex items-center justify-center">
+                <Lock size={22} className="text-[var(--teal)]" />
+            </div>
+            <h3 className="text-2xl font-bold text-white mt-5">Coming soon</h3>
+            <p className="text-sm text-gray-400 mt-3 max-w-md mx-auto leading-relaxed">
+                The quantitative forecast is being rebuilt and calibrated before we put it in front of
+                anyone. It will return once we can show how accurate it has actually been.
+            </p>
+            <p className="text-xs text-gray-600 mt-6 max-w-md mx-auto leading-relaxed">
+                In the meantime, Overview, Charts and Technicals are fully available — and the Learn tab
+                covers how to read every metric on them.
             </p>
         </div>
     );
@@ -456,7 +543,7 @@ const TABS = [
     { id: 'overview', label: 'Overview', icon: LayoutGrid },
     { id: 'charts', label: 'Charts', icon: CandlestickChart },
     { id: 'technicals', label: 'Technicals', icon: Activity },
-    { id: 'forecast', label: 'Quant Forecast', icon: LineChartIcon },
+    { id: 'forecast', label: 'Quant Forecast', icon: LineChartIcon, locked: true },
     { id: 'news', label: 'News', icon: Newspaper },
 ] as const;
 
@@ -536,6 +623,7 @@ export function StockDesk() {
                         )}
                     >
                         <t.icon size={15} /> {t.label}
+                        {'locked' in t && t.locked && <Lock size={11} className="text-gray-600" />}
                     </button>
                 ))}
             </div>
@@ -547,7 +635,7 @@ export function StockDesk() {
                 </div>
             )}
             {tab === 'technicals' && <TechnicalsTab symbol={symbol} />}
-            {tab === 'forecast' && <QuantForecastPanel symbol={symbol} />}
+            {tab === 'forecast' && <ForecastComingSoon />}
             {tab === 'news' && <NewsTab symbol={symbol} />}
         </div>
     );

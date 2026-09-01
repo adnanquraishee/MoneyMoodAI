@@ -299,6 +299,15 @@ export interface NewsItem {
     link: string;
     sentiment: number;
     label: 'positive' | 'negative' | 'neutral';
+    /** How the score was reached: full article text, headline only, a
+     *  content-free round-up, or a story that is not about this company. */
+    basis?: 'article' | 'headline' | 'uninformative' | 'off-topic';
+    /** 'direct' = named in the headline; 'mention' = only in the body. */
+    relevance?: 'direct' | 'mention';
+    headline_sentiment?: number;
+    body_sentiment?: number | null;
+    source?: string | null;
+    published?: string | null;
 }
 
 export interface NewsResponse {
@@ -306,6 +315,9 @@ export interface NewsResponse {
     company: string;
     avg_sentiment: number | null;
     distribution?: { positive: number; neutral: number; negative: number };
+    /** How many stories were scored on their full text rather than a headline. */
+    articles_read?: number;
+    off_topic?: number;
     items: NewsItem[];
 }
 
@@ -437,4 +449,147 @@ export interface LongTermResult {
     cone: { years: number[]; p10: number[]; p50: number[]; p90: number[] };
     scenarios: { name: string; tone: 'up' | 'down' | 'neutral'; cagr: number; assumptions: string }[];
     n_simulations: number;
+}
+
+// ---- metric education: real-universe percentile context ----
+
+export interface MetricDistribution {
+    count: number;
+    p10: number;
+    p25: number;
+    p50: number;
+    p75: number;
+    p90: number;
+    sectors: Record<string, { count: number; p50: number }>;
+}
+
+export interface MetricDistributions {
+    as_of: string | null;
+    universe_size: number;
+    metrics: Record<string, MetricDistribution>;
+}
+
+// ---- paper trading ----
+
+export interface PaperHolding {
+    symbol: string;
+    name: string;
+    qty: number;
+    avg_cost: number;
+    price: number | null;
+    value: number | null;
+    pnl: number | null;
+    pnl_pct: number | null;
+    /** The reason written on the most recent buy of this symbol. */
+    reason: string | null;
+    bought_at: string | null;
+}
+
+export interface PaperTrade {
+    id: string;
+    ts: string;
+    symbol: string;
+    name: string;
+    side: 'buy' | 'sell';
+    qty: number;
+    price: number;
+    reason: string;
+    /** Current price, so a past decision can be judged against now. */
+    price_now: number | null;
+    move_pct: number | null;
+}
+
+export interface PaperPortfolio {
+    started_at: string;
+    starting_cash: number;
+    cash: number;
+    holdings: PaperHolding[];
+    holdings_value: number;
+    total_value: number;
+    pnl: number;
+    return_pct: number;
+    nifty_return_pct: number | null;
+    trades: PaperTrade[];
+}
+
+// ---- Try Trade in Time ----
+
+export interface TimeTradeCasePreview {
+    id: string;
+    sector: string;
+    size: string;
+    date: string;
+    period_label: string;
+    teaser: string;
+}
+
+export interface TimeTradeFact {
+    label: string;
+    term?: string;
+    value: string;
+    note?: string;
+}
+
+export interface TimeTradeRiskFacts {
+    volatility?: number;
+    sharpe?: number | null;
+    beta?: number | null;
+    alpha?: number;
+    momentum?: number;
+    rsi?: number;
+    max_drawdown_1y?: number;
+}
+
+export interface TimeTradeCase {
+    id: string;
+    kind: 'classic' | 'random';
+    date: string;
+    period_label: string;
+    sector: string;
+    size: string;
+    context: string;
+    facts: TimeTradeFact[];
+    news: string[];
+    /** 'headlines' = real contemporary coverage (classics); 'data' = read from market data. */
+    news_kind: 'headlines' | 'data';
+    fiscal_note?: string | null;
+    risk_facts?: TimeTradeRiskFacts | null;
+    price_then: number | null;
+    price_facts: {
+        ret_1y: number | null;
+        ret_3m: number | null;
+        pct_from_52w_high: number | null;
+        pct_above_52w_low: number | null;
+        volatility_1y: number | null;
+    };
+    nifty_ret_1y: number | null;
+    years_ago: number;
+}
+
+export interface TimeTradeReveal {
+    id: string;
+    symbol: string;
+    name: string;
+    sector: string;
+    date: string;
+    as_of: string;
+    years: number;
+    price_then: number;
+    price_now: number;
+    stock_pct: number | null;
+    cagr: number | null;
+    nifty_pct: number | null;
+    amount: number;
+    reference_amount: number;
+    qty: number;
+    invested: number;
+    value_now: number;
+    pnl: number;
+    nifty_value: number;
+    max_drawdown_pct: number;
+    worst: { date: string; pct: number | null };
+    best: { date: string; pct: number | null };
+    path: { d: string; p: number }[];
+    what_happened: string;
+    lesson: string;
 }
