@@ -150,7 +150,7 @@ class MarketStore:
 
 
 store = MarketStore()
-_scheduler: BackgroundScheduler | None = None
+_scheduler: Any = None
 
 
 def _utcnow() -> str:
