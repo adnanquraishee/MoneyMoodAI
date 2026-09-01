@@ -12,7 +12,7 @@
 fastapi
 pydantic>=2.0
 
-yfinance>=0.2.66
+yfinance<0.2.50
 pandas>=2.2.3
 numpy>=1.26.4
 

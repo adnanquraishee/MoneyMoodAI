@@ -273,6 +273,14 @@ def _history(symbol: str) -> pd.Series | None:
     with _hist_lock:
         if symbol in _hist_cache:
             return _hist_cache[symbol]
+
+    from modules import market_cache
+    if market_cache.store.closes is not None and symbol in market_cache.store.closes.columns:
+        s = market_cache.store.closes[symbol].dropna()
+        with _hist_lock:
+            _hist_cache[symbol] = s
+        return s
+
     try:
         import yfinance as yf
         h = yf.Ticker(symbol).history(period="max", auto_adjust=True)
