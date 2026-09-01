@@ -39,26 +39,24 @@ except Exception as e:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    pass
+    # Warm the in-memory market store and start background refresh jobs.
+    # Request handlers only ever read that snapshot — they never wait on Yahoo.
+    try:
+        market_cache.start()
+    except NameError:
+        logger.error("market_cache is not defined, skipping warmup.")
+    yield
+    try:
+        market_cache.stop()
+    except NameError:
+        pass
+
 
 app = FastAPI(title="FinQorp API", version="2.0.0", lifespan=lifespan)
 
 @app.get("/api/debug")
 def debug_info():
     return {"status": "error", "traceback": import_error_details}
-
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Warm the in-memory market store and start background refresh jobs.
-    # Request handlers only ever read that snapshot — they never wait on Yahoo.
-    market_cache.start()
-    yield
-    market_cache.stop()
-
-
-app = FastAPI(title="FinQorp API", version="2.0.0", lifespan=lifespan)
 
 # CORS configuration for React frontend
 app.add_middleware(
