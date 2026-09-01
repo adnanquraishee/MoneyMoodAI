@@ -269,17 +269,31 @@ _hist_lock = threading.Lock()
 _hist_cache: dict[str, pd.Series] = {}
 
 
-def _history(symbol: str) -> pd.Series | None:
+def _history(symbol: str, needs_start: str | None = None) -> pd.Series | None:
+    """Full price history for a symbol.
+
+    The market cache holds only ~2 years of closes, which is nowhere near far
+    enough for these cases — a 2015 decision date would silently resolve to
+    the earliest cached day and report the wrong price. So the cache is used
+    only when it demonstrably reaches back past the date we need.
+    """
     with _hist_lock:
-        if symbol in _hist_cache:
-            return _hist_cache[symbol]
+        cached = _hist_cache.get(symbol)
+    if cached is not None and _covers(cached, needs_start):
+        return cached
 
     from modules import market_cache
-    if market_cache.store.closes is not None and symbol in market_cache.store.closes.columns:
-        s = market_cache.store.closes[symbol].dropna()
-        with _hist_lock:
-            _hist_cache[symbol] = s
-        return s
+    closes = market_cache.store.closes
+    if closes is not None and symbol in closes.columns:
+        s = closes[symbol].dropna()
+        if not s.empty:
+            s.index = pd.to_datetime(s.index)
+            if getattr(s.index, "tz", None) is not None:
+                s.index = s.index.tz_localize(None)
+            if _covers(s, needs_start):
+                with _hist_lock:
+                    _hist_cache.setdefault(symbol, s)
+                return s
 
     try:
         import yfinance as yf
@@ -296,9 +310,26 @@ def _history(symbol: str) -> pd.Series | None:
     return s
 
 
+def _covers(s: pd.Series | None, needs_start: str | None) -> bool:
+    """Whether this series actually reaches back to the date we need."""
+    if s is None or s.empty:
+        return False
+    if needs_start is None:
+        return True
+    return s.index.min() <= pd.Timestamp(needs_start) + pd.Timedelta(days=7)
+
+
 def _at(s: pd.Series, d: str) -> tuple[pd.Timestamp, float] | None:
-    """First trading day on or after `d`."""
-    after = s[s.index >= pd.Timestamp(d)]
+    """First trading day on or after `d`.
+
+    Returns None when the series starts well after `d`: silently handing back
+    the earliest row it happens to hold would price a 2015 decision at today's
+    level and quietly corrupt every number downstream.
+    """
+    want = pd.Timestamp(d)
+    if s is None or s.empty or s.index.min() > want + pd.Timedelta(days=7):
+        return None
+    after = s[s.index >= want]
     if after.empty:
         return None
     return after.index[0], float(after.iloc[0])
@@ -352,8 +383,8 @@ def get_case(case_id: str) -> dict | None:
     c = _lookup(case_id)
     if not c:
         return None
-    s = _history(c["symbol"])
-    idx = _history(NIFTY)
+    s = _history(c["symbol"], c["date"])
+    idx = _history(NIFTY, c["date"])
     then = _at(s, c["date"]) if s is not None else None
     nifty_then = _at(idx, c["date"]) if idx is not None else None
 
@@ -386,8 +417,8 @@ def decide(case_id: str, amount: float) -> dict | None:
     c = _lookup(case_id)
     if not c:
         return None
-    s = _history(c["symbol"])
-    idx = _history(NIFTY)
+    s = _history(c["symbol"], c["date"])
+    idx = _history(NIFTY, c["date"])
     if s is None or idx is None:
         return {"error": "price history unavailable right now"}
     then = _at(s, c["date"])

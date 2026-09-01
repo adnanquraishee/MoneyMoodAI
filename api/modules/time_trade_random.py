@@ -282,7 +282,7 @@ def draw(exclude: set[str] | None = None) -> dict | None:
     if not pool:
         return None
     exclude = exclude or set()
-    idx = tt._history(tt.NIFTY)
+    idx = tt._history(tt.NIFTY, "2015-01-01")
     if idx is None:
         return None
     rng = random.Random()
@@ -292,7 +292,7 @@ def draw(exclude: set[str] | None = None) -> dict | None:
         sym = rng.choice(pool)
         if sym in exclude:
             continue
-        adj = tt._history(sym)
+        adj = tt._history(sym, "2019-01-01")
         if adj is None or len(adj) < 600:
             continue
         st = _statements(sym)
