@@ -20,8 +20,6 @@ const PAGES = [
     { label: 'Heatmap', to: '/app/heatmap', icon: Flame, hint: 'treemap sectors' },
     { label: 'Screener', to: '/app/screener', icon: Filter, hint: 'filter ratios factors scan' },
     { label: 'Stock Desk', to: '/app/stock', icon: CandlestickChart, hint: 'charts technicals forecast analysis' },
-    { label: 'Watchlist', to: '/app/watchlist', icon: Star, hint: 'saved favourites' },
-    { label: 'Compare', to: '/app/compare', icon: GitCompareArrows, hint: 'versus side by side' },
 ];
 
 type Item =

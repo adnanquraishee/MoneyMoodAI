@@ -23,9 +23,7 @@ export function Sidebar({ currentStock, stockMetrics }: SidebarProps) {
     const NAV_ITEMS = [
         { label: 'Market Overview', icon: LayoutDashboard, path: '/app/' },
         { label: 'Screener', icon: ScanSearch, path: '/app/screener' },
-        { label: 'Watchlist', icon: Star, path: '/app/watchlist' },
         { label: 'Stock Desk', icon: LineChart, path: getStockUrl('/app/stock') },
-        { label: 'Peer Comparison', icon: GitCompare, path: '/app/compare' },
     ];
 
     return (

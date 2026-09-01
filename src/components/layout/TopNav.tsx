@@ -8,8 +8,6 @@ const LINKS = [
     { label: 'Heatmap', to: '/app/heatmap' },
     { label: 'Screener', to: '/app/screener' },
     { label: 'Stock Desk', to: '/app/stock' },
-    { label: 'Watchlist', to: '/app/watchlist' },
-    { label: 'Compare', to: '/app/compare' },
     { label: 'Learn', to: '/app/learn' },
 ];
 
