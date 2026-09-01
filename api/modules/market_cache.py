@@ -823,10 +823,6 @@ def get_universe_names() -> dict[str, str]:
 
 
 def _warmup() -> None:
-    with store.lock:
-        store.status = "warming"
-        store.progress = 0.02
-    _load_snapshots()   # instant screener from the last good crawl
     refresh_indices()           # dashboard hero cards first (seconds, not minutes)
     refresh_universe()          # chunked; screener fills progressively
     refresh_fast_lane()
@@ -845,12 +841,25 @@ def start() -> None:
     global _scheduler
     if _scheduler is not None:
         return
+    import os
     syms, names = load_nse_universe()
     prio = [x for x in FALLBACK_UNIVERSE if x in set(syms)] or []
     rest = [x for x in syms if x not in set(prio)]
     syms = prio + rest       # famous names score within the first chunk
     UNIVERSE.clear(); UNIVERSE.extend(syms)
     UNIVERSE_NAMES.clear(); UNIVERSE_NAMES.update(names)
+
+    # Load snapshots synchronously so Vercel doesn't freeze the thread
+    with store.lock:
+        store.status = "warming"
+        store.progress = 0.02
+    _load_snapshots()
+
+    # Vercel freezes background threads, so don't spawn them on Vercel
+    if os.environ.get("VERCEL"):
+        logger.info("Running on Vercel: background threads disabled.")
+        return
+
     threading.Thread(target=_warmup, name="market-warmup", daemon=True).start()
     _scheduler = BackgroundScheduler(daemon=True)
     _scheduler.add_job(refresh_universe, "interval", minutes=UNIVERSE_REFRESH_MIN,
