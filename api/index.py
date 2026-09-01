@@ -17,17 +17,36 @@ import logging
 # torch and transformers — together far over a serverless bundle limit — and
 # their endpoints were already unreachable from the UI. They stay in the repo
 # but are no longer imported by the API.
-from modules import (
-    data_fetch,
-    ticker_resolver,
-    technicals,
-)
-from modules import market_cache, forecast_engine, watchlist_store, paper_trading, time_trade, time_trade_random, news_sentiment, factors as factors_mod
-from modules import salahkaar
 
-# Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Track import errors for debugging Vercel 500s
+import_error_details = None
+
+try:
+    from modules import (
+        data_fetch,
+        ticker_resolver,
+        technicals,
+    )
+    from modules import market_cache, forecast_engine, watchlist_store, paper_trading, time_trade, time_trade_random, news_sentiment, factors as factors_mod
+    from modules import salahkaar
+except Exception as e:
+    import_error_details = traceback.format_exc()
+    logger.error(f"Failed to import modules: {import_error_details}")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    pass
+
+app = FastAPI(title="FinQorp API", version="2.0.0", lifespan=lifespan)
+
+@app.get("/api/debug")
+def debug_info():
+    return {"status": "error", "traceback": import_error_details}
+
 
 
 @asynccontextmanager
