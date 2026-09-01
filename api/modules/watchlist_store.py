@@ -8,7 +8,7 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-_DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data"
+_DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 _FILE = _DATA_DIR / "watchlist.json"
 _lock = threading.Lock()
 

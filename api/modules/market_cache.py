@@ -71,7 +71,7 @@ def load_nse_universe() -> tuple[list[str], dict[str, str]]:
     from pathlib import Path
     import time as _time
 
-    data_dir = Path(__file__).resolve().parent.parent.parent / "data"
+    data_dir = Path(__file__).resolve().parent.parent / "data"
     data_dir.mkdir(exist_ok=True)
     cache_file = data_dir / "nse_equity_list.csv"
 
@@ -161,7 +161,7 @@ def _utcnow() -> str:
 from pathlib import Path as _Path
 import json as _json
 
-_DATA_DIR = _Path(__file__).resolve().parent.parent.parent / "data"
+_DATA_DIR = _Path(__file__).resolve().parent.parent / "data"
 _CLOSES_PKL = _DATA_DIR / "closes_snapshot.pkl"
 _FUND_JSON = _DATA_DIR / "fundamentals_snapshot.json"
 
