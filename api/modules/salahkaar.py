@@ -34,7 +34,7 @@ def _load_api_key() -> str | None:
     key = os.getenv("GROQ_API_KEY")
     if key:
         return key.strip()
-    env_file = Path(__file__).resolve().parent.parent / ".env"
+    env_file = Path(__file__).resolve().parent.parent.parent / ".env"
     if env_file.exists():
         for line in env_file.read_text().splitlines():
             if line.startswith("GROQ_API_KEY="):
