@@ -15,6 +15,7 @@ import { Screener } from './pages/Screener';
 import { Heatmap } from './pages/Heatmap';
 import { StockDesk } from './pages/StockDesk';
 import { Learn } from './pages/Learn';
+import { Analytics } from '@vercel/analytics/react';
 import './index.css';
 
 /** Old routes (analysis/technical/forecast/quant) now live as Stock Desk tabs. */
@@ -85,6 +86,7 @@ function App() {
         {/* Dashboard under /app/* */}
         <Route path="/app/*" element={<AppContent />} />
       </Routes>
+      <Analytics />
     </BrowserRouter>
   );
 }
